@@ -17,4 +17,4 @@ jobs:
       - name: Model tests
         run: node --test tests/model.test.mjs
       - name: Shellcheck
-        run: shellcheck bin/enteauth-list
+        run: shellcheck bin/enteauth-list bin/enteauth-clipcheck
