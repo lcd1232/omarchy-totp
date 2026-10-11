@@ -3,7 +3,7 @@ import QtQuick.Shapes
 import qs.Commons
 
 // Shield-and-keyhole mark in one colour, so it follows the theme like the
-// built-in bar icons. Same shape as assets/icon.svg (36x36 viewBox).
+// built-in bar icons. Drawn on a 36x36 viewBox.
 Item {
   id: root
 
