@@ -13,17 +13,17 @@ class ParseOtpauthTest(unittest.TestCase):
     def test_full_uri(self):
         uri = ("otpauth://totp/GitHub:me@example.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub"
                "&algorithm=sha256&digits=8&period=60"
-               f"&codeDisplay={cd(pinned=True, trashed=False, position=4, tags=[], note='')}")
+               f"&codeDisplay={cd(pinned=True, trashed=False, position=4, lastUsedAt=1760000000123456, tags=[], note='')}")
         self.assertEqual(ea.parse_otpauth(uri), {
             "issuer": "GitHub", "account": "me@example.com", "secret": "JBSWY3DPEHPK3PXP",
             "digits": 8, "period": 60, "algorithm": "SHA256",
-            "pinned": True, "trashed": False, "position": 4,
+            "pinned": True, "trashed": False, "position": 4, "lastUsedAt": 1760000000123456,
         })
 
     def test_defaults(self):
         p = ea.parse_otpauth("otpauth://totp/acct?secret=JBSWY3DPEHPK3PXP")
         self.assertEqual((p["digits"], p["period"], p["algorithm"]), (6, 30, "SHA1"))
-        self.assertEqual((p["pinned"], p["trashed"], p["position"]), (False, False, 0))
+        self.assertEqual((p["pinned"], p["trashed"], p["position"], p["lastUsedAt"]), (False, False, 0, 0))
 
     def test_label_variants(self):
         # Review Focus 3.
@@ -47,10 +47,11 @@ class ParseOtpauthTest(unittest.TestCase):
     def test_code_display_missing_or_malformed(self):
         # Review Focus 5: still listed, unpinned, position 0.
         for tail in ("", "&codeDisplay=", "&codeDisplay=%7Bnot-json", "&codeDisplay=%5B1%2C2%5D",
-                     f"&codeDisplay={cd(pinned='yes', position='3')}"):
+                     f"&codeDisplay={cd(pinned='yes', position='3', lastUsedAt='5')}", f"&codeDisplay={cd(lastUsedAt=True)}",
+                     f"&codeDisplay={cd(lastUsedAt=-1)}"):
             with self.subTest(tail=tail):
                 p = ea.parse_otpauth("otpauth://totp/x?secret=AA" + tail)
-                self.assertEqual((p["pinned"], p["trashed"], p["position"]), (False, False, 0))
+                self.assertEqual((p["pinned"], p["trashed"], p["position"], p["lastUsedAt"]), (False, False, 0, 0))
 
     def test_non_totp_is_none(self):
         self.assertIsNone(ea.parse_otpauth("otpauth://hotp/x?secret=AA&counter=1"))

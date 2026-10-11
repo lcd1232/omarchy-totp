@@ -81,6 +81,9 @@ class DemoTest(unittest.TestCase):
         self.assertGreaterEqual(len(out["entries"]), 5)
         self.assertTrue(all(len(e["codes"]) == 2 for e in out["entries"]))
         self.assertTrue(any(e["pinned"] for e in out["entries"]))
+        # Some recently used, some never: shows the recent-first ordering.
+        used = [e["lastUsedAt"] for e in out["entries"]]
+        self.assertTrue(any(used) and not all(used))
 
 
 class WrapperTest(unittest.TestCase):

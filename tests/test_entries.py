@@ -21,7 +21,7 @@ class ListEntriesTest(unittest.TestCase):
 
     def test_end_to_end(self):
         make_db(self.db, [
-            ("ent-1", *encrypt_row(otpauth(code_display={"pinned": True, "position": 2}))),
+            ("ent-1", *encrypt_row(otpauth(code_display={"pinned": True, "position": 2, "lastUsedAt": 42}))),
             (None, *encrypt_row(otpauth("Acme:bob", issuer="Acme"), tag=ea.TAG_MESSAGE)),
         ])
         out = self.run_list()
@@ -29,7 +29,7 @@ class ListEntriesTest(unittest.TestCase):
         self.assertEqual(out["updatedAt"], "1970-01-01T00:00:59Z")
         self.assertEqual(out["entries"][0], {
             "id": "ent-1", "issuer": "GitHub", "account": "me@example.com",
-            "period": 30, "digits": 6, "pinned": True, "position": 2,
+            "period": 30, "digits": 6, "pinned": True, "position": 2, "lastUsedAt": 42,
             "counter": 1, "codes": ["287082", "359152", "969429"],
         })
         # Unsynced row (id NULL) falls back to the local row id.

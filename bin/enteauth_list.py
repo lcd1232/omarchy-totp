@@ -148,6 +148,11 @@ def _int_param(q: dict, name: str, default: int, lo: int, hi: int) -> int:
     return value
 
 
+def _display_int(display: dict, name: str) -> int:
+    value = display.get(name)
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
 def parse_otpauth(uri: str) -> dict | None:
     """Fields of an Ente otpauth URI; None for types other than TOTP."""
     u = urlparse(uri)
@@ -170,9 +175,7 @@ def parse_otpauth(uri: str) -> dict | None:
         display = {}
     if not isinstance(display, dict):
         display = {}
-    position = display.get("position")
-    if not isinstance(position, int) or isinstance(position, bool):
-        position = 0
+    position = _display_int(display, "position")
     return {
         "issuer": (q.get("issuer") or label_issuer).strip(),
         "account": account.strip(),
@@ -183,6 +186,7 @@ def parse_otpauth(uri: str) -> dict | None:
         "pinned": display.get("pinned") is True,
         "trashed": display.get("trashed") is True,
         "position": position,
+        "lastUsedAt": max(0, _display_int(display, "lastUsedAt")),
     }
 
 
@@ -308,6 +312,7 @@ def list_entries(window: int, now: int | None = None, data_dir: Path | None = No
             "digits": otp["digits"],
             "pinned": otp["pinned"],
             "position": otp["position"],
+            "lastUsedAt": otp["lastUsedAt"],
             **code_window(seed, otp["digits"], otp["algorithm"], otp["period"], now, window),
         })
     if rows and skipped == len(rows):
@@ -337,23 +342,25 @@ def check(data_dir: Path | None = None, keys: dict | None = None) -> dict:
 
 
 # Fake accounts for screenshots. Well-known public test seeds, not real ones.
-DEMO_ACCOUNTS = [
-    ("GitHub", "octocat@example.com", "JBSWY3DPEHPK3PXP", 6, True),
-    ("Ente", "demo@ente.io", "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", 6, False),
-    ("Google", "jane.doe@example.com", "KRSXG5CTMVRXEZLUKN2XAZLSKNSWG4TFOQ", 6, False),
-    ("AWS", "root@example.org", "MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U", 6, False),
-    ("Discord", "jane#0001", "ONSWG4TFORZWK3DUMVZXG5DFON2A", 6, False),
-    ("Tailscale", "jane@example.net", "OBQXG43XN5ZGIZLYMFWXA3DF", 8, False),
+DEMO_ACCOUNTS = [  # issuer, account, seed, digits, pinned, last used (minutes ago, 0 = never)
+    ("GitHub", "octocat@example.com", "JBSWY3DPEHPK3PXP", 6, True, 0),
+    ("Ente", "demo@ente.io", "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", 6, False, 0),
+    ("Google", "jane.doe@example.com", "KRSXG5CTMVRXEZLUKN2XAZLSKNSWG4TFOQ", 6, False, 5),
+    ("AWS", "root@example.org", "MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U", 6, False, 0),
+    ("Discord", "jane#0001", "ONSWG4TFORZWK3DUMVZXG5DFON2A", 6, False, 90),
+    ("Tailscale", "jane@example.net", "OBQXG43XN5ZGIZLYMFWXA3DF", 8, False, 0),
 ]
 
 
 def demo(window: int, now: int | None = None) -> dict:
     now = int(time.time()) if now is None else now
     entries = []
-    for i, (issuer, account, seed, digits, pinned) in enumerate(DEMO_ACCOUNTS):
+    for i, (issuer, account, seed, digits, pinned, minutes_ago) in enumerate(DEMO_ACCOUNTS):
         entries.append({
             "id": f"demo-{i}", "issuer": issuer, "account": account, "period": 30,
             "digits": digits, "pinned": pinned, "position": i,
+            # Ente stores lastUsedAt in microseconds.
+            "lastUsedAt": (now - minutes_ago * 60) * 1_000_000 if minutes_ago else 0,
             **code_window(b32decode_secret(seed), digits, "SHA1", 30, now, window),
         })
     return {"ok": True, "demo": True, "updatedAt": iso_time(now), "entries": entries,

@@ -26,6 +26,10 @@ need to be running.
   reference plugin with credit in README and LICENSE.
 - **Pins:** only Ente's own `pinned` flag. The plugin has no pin action and
   stores no pins.
+- **Order:** Ente-pinned first, then most recently used per Ente's
+  `codeDisplay.lastUsedAt` (newest first), then A–Z. No sort setting. The
+  plugin stores no usage state; copying from the panel does not reorder
+  (decided 2026-10-11, after review).
 - **No "Open Ente Auth" button.** Empty/error states say what to do in text.
 - **Out of scope:** HOTP and Steam entries (skipped), Ente notes, tags and
   icons, writing anything back to Ente.
@@ -59,12 +63,11 @@ need to be running.
 manifest.json            plugin manifest (id lcd1232.ente-auth)
 Panel.qml                ported; pin action removed, Proton button removed
 Service.qml              ported; runs bin/enteauth-list
-Model.js                 ported; sort = Ente-pinned first, then sortMode
+Model.js                 ported; sort = Ente-pinned, Ente lastUsedAt, A–Z
 EnteAuthIcon.qml         ported bar icon
 assets/icon.svg
 bin/enteauth-list        wrapper: exec /usr/bin/python3 -I enteauth_list.py "$@"
 bin/enteauth_list.py     new: reads DB + keyring, emits codes as JSON
-bin/enteauth-prefs       ported; stores last-used times only
 bin/enteauth-clipcheck   ported unchanged apart from names
 tests/                   unittest suite for the helper
 .github/workflows/ci.yml tests + shellcheck + manifest check
@@ -90,7 +93,7 @@ Stdlib only plus libsodium via `ctypes`.
    compute the next 10 codes per entry.
 6. **Output.** Same JSON contract as the reference helper
    (`entries`, `error`), each entry with `id`, `issuer`, `account`,
-   `pinned`, `position`, `period`, codes. `id` = Ente entity `id`, or
+   `pinned`, `position`, `lastUsedAt` (int, 0 if missing/invalid), `period`, codes. `id` = Ente entity `id`, or
    `local-<_generatedID>` if unsynced. Refuse to emit if any entry carries
    a `secret` field. Add `skipped` (count of unreadable rows).
 
@@ -109,11 +112,10 @@ Shift+Enter copies the next code, keyboard navigation, Tab to next panel,
 Esc closes, click to copy, right-click bar icon reloads. Removed: Ctrl+P /
 right-click pinning and the "Add in …" button.
 
-Ordering: Ente-pinned entries first, then by `sortMode`:
-`recent` (plugin's last-copied time, then A–Z), `alpha`, or `ente`
-(Ente's `position`).
+Ordering (after match quality while searching): Ente-pinned entries first,
+then Ente's `lastUsedAt` (newest first), then A–Z.
 
-Settings (`omarchy bar set lcd1232.ente-auth <key> <value>`): `sortMode`,
+Settings (`omarchy bar set lcd1232.ente-auth <key> <value>`):
 `closeOnCopy`, `notifyOnCopy`, `clipboardClearSec`, `demoMode` — same
 meanings as the reference.
 
@@ -137,8 +139,7 @@ Refresh: helper runs on open and again when codes run low (~5 min); codes for
 - DB opened read-only; nothing decrypted is written to disk.
 - Codes go to `wl-copy --sensitive` on stdin; clearing is checked by
   `enteauth-clipcheck` without reading the clipboard into the shell.
-- State file `~/.local/state/lcd1232.ente-auth/prefs.json` holds only
-  last-used times, with the reference's private-dir / no-symlink checks.
+- The plugin stores no state files.
 
 ## Dependencies
 
@@ -168,8 +169,7 @@ GitHub Actions, `.github/workflows/ci.yml`, on push and pull request:
 - Job runs in an `archlinux:latest` container (matches Omarchy):
   `pacman -Syu --noconfirm python libsodium shellcheck`.
 - `python -m unittest discover -s tests -v`
-- `shellcheck bin/enteauth-list bin/enteauth-prefs bin/enteauth-clipcheck`
-  (whichever are shell scripts).
+- `shellcheck bin/enteauth-list bin/enteauth-clipcheck`.
 - `python -m json.tool manifest.json` (manifest is valid JSON).
 
 QML is not linted in CI (Quickshell/Omarchy types are not available there).
