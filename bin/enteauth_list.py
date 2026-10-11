@@ -13,7 +13,9 @@ import ctypes
 import ctypes.util
 import hashlib
 import hmac
+import json
 import struct
+from urllib.parse import parse_qs, unquote, urlparse
 
 __version__ = "1.0.0"
 
@@ -108,3 +110,51 @@ def code_window(key: bytes, digits: int, algorithm: str, period: int, now: int, 
     counter = now // period
     return {"counter": counter,
             "codes": [hotp(key, counter + k, digits, algorithm) for k in range(window)]}
+
+
+def _int_param(q: dict, name: str, default: int, lo: int, hi: int) -> int:
+    raw = q.get(name)
+    if raw in (None, ""):
+        return default
+    value = int(raw)  # ValueError for non-numbers
+    if not lo <= value <= hi:
+        raise ValueError(f"{name} out of range")
+    return value
+
+
+def parse_otpauth(uri: str) -> dict | None:
+    """Fields of an Ente otpauth URI; None for types other than TOTP."""
+    u = urlparse(uri)
+    if u.scheme != "otpauth":
+        raise ValueError("not an otpauth URI")
+    if u.netloc.lower() != "totp":
+        return None
+    q = {k: v[0] for k, v in parse_qs(u.query, keep_blank_values=True).items()}
+    label = unquote(u.path[1:] if u.path.startswith("/") else u.path)
+    label_issuer, account = label.split(":", 1) if ":" in label else ("", label)
+    secret = q.get("secret", "").strip()
+    if not secret:
+        raise ValueError("missing secret")
+    algorithm = (q.get("algorithm") or "SHA1").upper()
+    if algorithm not in ALGORITHMS:
+        raise ValueError("unsupported algorithm")
+    try:
+        display = json.loads(q.get("codeDisplay") or "{}")
+    except ValueError:
+        display = {}
+    if not isinstance(display, dict):
+        display = {}
+    position = display.get("position")
+    if not isinstance(position, int) or isinstance(position, bool):
+        position = 0
+    return {
+        "issuer": (q.get("issuer") or label_issuer).strip(),
+        "account": account.strip(),
+        "secret": secret,
+        "digits": _int_param(q, "digits", 6, 1, 10),
+        "period": _int_param(q, "period", 30, 1, 86400),
+        "algorithm": algorithm,
+        "pinned": display.get("pinned") is True,
+        "trashed": display.get("trashed") is True,
+        "position": position,
+    }
