@@ -14,10 +14,22 @@ import ctypes.util
 import hashlib
 import hmac
 import json
+import os
 import struct
+import subprocess
+from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 __version__ = "1.0.0"
+
+DATA_DIR = Path.home() / ".local/share/io.ente.auth"
+ONLINE_DB = ".ente.authenticator.db"
+OFFLINE_DB = ".ente.offline_authenticator.db"
+KEYRING_ACCOUNT = "io.ente.auth.secureStorage"
+# Absolute path first so a PATH entry can't substitute the keyring client.
+SECRET_TOOL = "/usr/bin/secret-tool" if os.path.exists("/usr/bin/secret-tool") else "secret-tool"
+SECRET_TOOL_TIMEOUT_SEC = 10   # a keyring unlock prompt left open, etc.
+KEYRING_MAX_BYTES = 64 * 1024  # flutter_secure_storage JSON; a few hundred bytes in practice
 
 # libsodium secretstream tags (crypto_secretstream_xchacha20poly1305_TAG_*).
 TAG_MESSAGE = 0
@@ -158,3 +170,49 @@ def parse_otpauth(uri: str) -> dict | None:
         "trashed": display.get("trashed") is True,
         "position": position,
     }
+
+
+def read_keys(secret_tool: str = SECRET_TOOL) -> dict:
+    """Ente Auth's flutter_secure_storage values from the Secret Service."""
+    try:
+        proc = subprocess.run(  # fixed argv, no shell
+            [secret_tool, "lookup", "account", KEYRING_ACCOUNT],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=SECRET_TOOL_TIMEOUT_SEC, check=False,
+        )
+    except FileNotFoundError as e:
+        raise Err("DEPS_MISSING", "secret-tool not found (install package: libsecret)") from e
+    except subprocess.TimeoutExpired as e:
+        raise Err("HELPER_TIMEOUT", "secret-tool did not answer (keyring prompt open?)") from e
+    out = proc.stdout
+    if len(out) > KEYRING_MAX_BYTES:
+        raise Err("UNSUPPORTED_SCHEMA", "keyring item too large")
+    if proc.returncode != 0:
+        raise Err("NOT_SIGNED_IN", "no Ente Auth item in the keyring")
+    if not out.strip():
+        raise Err("KEYRING_LOCKED", "empty secret — unlock the login keyring")
+    try:
+        keys = json.loads(out)
+    except ValueError as e:
+        raise Err("UNSUPPORTED_SCHEMA", "unexpected keyring item format") from e
+    if not isinstance(keys, dict):
+        raise Err("UNSUPPORTED_SCHEMA", "unexpected keyring item format")
+    return keys
+
+
+def select_vault(keys: dict, data_dir: Path) -> tuple[Path, bytes]:
+    """(DB path, 32-byte key): the signed-in DB, else the offline-mode one."""
+    for key_name, db_name in (("auth_secret_key", ONLINE_DB), ("offline_auth_secret_key", OFFLINE_DB)):
+        value = keys.get(key_name)
+        if not isinstance(value, str) or not value:
+            continue
+        path = data_dir / db_name
+        if not path.is_file():
+            raise Err("DB_MISSING", f"{db_name} not found — open Ente Auth and sign in once")
+        try:
+            key = base64.b64decode(value, validate=True)
+        except binascii.Error as e:
+            raise Err("DECRYPT_FAILED", f"{key_name} is not base64") from e
+        if len(key) != 32:
+            raise Err("DECRYPT_FAILED", f"{key_name} has unexpected length {len(key)}")
+        return path, key
+    raise Err("NOT_SIGNED_IN", "no Ente Auth key in the keyring")
