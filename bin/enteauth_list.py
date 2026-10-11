@@ -7,6 +7,7 @@ window of upcoming codes per entry as one JSON line. Secrets never leave this
 process."""
 from __future__ import annotations
 
+import argparse
 import base64
 import binascii
 import ctypes
@@ -15,9 +16,11 @@ import hashlib
 import hmac
 import json
 import os
+import signal
 import sqlite3
 import struct
 import subprocess
+import sys
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -36,6 +39,11 @@ MAX_ENTRIES = 1000
 MAX_LABEL_CHARS = 256          # issuer / account, truncated for display
 MAX_ID_CHARS = 128
 DB_BUSY_RETRY_SEC = 0.2
+HELPER_TIMEOUT_SEC = 20        # whole run; SIGALRM -> HELPER_TIMEOUT JSON
+MAX_MESSAGE_CHARS = 200
+MAX_OUTPUT_BYTES = 1024 * 1024 # omarchy-shell buffers our whole stdout
+DEFAULT_WINDOW = 10
+MAX_WINDOW = 20
 
 # libsodium secretstream tags (crypto_secretstream_xchacha20poly1305_TAG_*).
 TAG_MESSAGE = 0
@@ -294,3 +302,96 @@ def list_entries(window: int, now: int | None = None, data_dir: Path | None = No
     if rows and skipped == len(rows):
         raise Err("DECRYPT_FAILED", "no entry could be decrypted (wrong key?)")
     return {"ok": True, "updatedAt": iso_time(now), "entries": entries, "skipped": skipped, "error": None}
+
+
+def fail(code: str, message: str) -> dict:
+    return {"ok": False, "updatedAt": iso_time(int(time.time())), "entries": [],
+            "error": {"code": code, "message": str(message)[:MAX_MESSAGE_CHARS]}}
+
+
+def emit(payload: dict) -> None:
+    """Print payload as one JSON line, never more than MAX_OUTPUT_BYTES."""
+    out = json.dumps(payload, separators=(",", ":"))
+    if len(out.encode("utf-8")) > MAX_OUTPUT_BYTES:
+        out = json.dumps(fail("OUTPUT_TOO_LARGE", f"output over {MAX_OUTPUT_BYTES} bytes"),
+                         separators=(",", ":"))
+    print(out)
+
+
+def check(data_dir: Path | None = None, keys: dict | None = None) -> dict:
+    """Diagnose the setup; prints counts, never codes."""
+    payload = list_entries(1, data_dir=data_dir, keys=keys)
+    return {"ok": True, "updatedAt": payload["updatedAt"], "entries": [], "error": None,
+            "check": {"entries": len(payload["entries"]), "skipped": payload["skipped"]}}
+
+
+# Fake accounts for screenshots. Well-known public test seeds, not real ones.
+DEMO_ACCOUNTS = [
+    ("GitHub", "octocat@example.com", "JBSWY3DPEHPK3PXP", 6, True),
+    ("Ente", "demo@ente.io", "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", 6, False),
+    ("Google", "jane.doe@example.com", "KRSXG5CTMVRXEZLUKN2XAZLSKNSWG4TFOQ", 6, False),
+    ("AWS", "root@example.org", "MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U", 6, False),
+    ("Discord", "jane#0001", "ONSWG4TFORZWK3DUMVZXG5DFON2A", 6, False),
+    ("Tailscale", "jane@example.net", "OBQXG43XN5ZGIZLYMFWXA3DF", 8, False),
+]
+
+
+def demo(window: int, now: int | None = None) -> dict:
+    now = int(time.time()) if now is None else now
+    entries = []
+    for i, (issuer, account, seed, digits, pinned) in enumerate(DEMO_ACCOUNTS):
+        entries.append({
+            "id": f"demo-{i}", "issuer": issuer, "account": account, "period": 30,
+            "digits": digits, "pinned": pinned, "position": i,
+            **code_window(b32decode_secret(seed), digits, "SHA1", 30, now, window),
+        })
+    return {"ok": True, "demo": True, "updatedAt": iso_time(now), "entries": entries,
+            "skipped": 0, "error": None}
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--check", action="store_true",
+                    help="verify keyring and database access; prints counts, no codes")
+    ap.add_argument("--demo", action="store_true",
+                    help="print fake demo accounts (for screenshots); never touches the vault")
+    ap.add_argument("--window", type=int, default=DEFAULT_WINDOW,
+                    help=f"codes per entry, current one first (1-{MAX_WINDOW})")
+    ap.add_argument("--version", action="version", version=f"enteauth-list {__version__}")
+    args = ap.parse_args(argv)
+    window = max(1, min(MAX_WINDOW, args.window))
+    try:
+        if args.demo:
+            emit(demo(window))
+            return 0
+        if args.check:
+            emit(check())
+            return 0
+        payload = list_entries(window)
+        if any("secret" in e for e in payload["entries"]):
+            raise Err("DECRYPT_FAILED", "refusing to emit secret field")
+        emit(payload)
+        return 0
+    except Err as e:
+        emit(fail(e.code, e.message))
+        return 1
+    except Exception as e:  # noqa: BLE001 - fail closed with a JSON error
+        # Only the exception type: its text could quote decrypted data.
+        emit(fail("DECRYPT_FAILED", f"internal error ({type(e).__name__})"))
+        return 1
+
+
+def _exit_on_signal(signum, _frame):
+    raise SystemExit(128 + signum)
+
+
+def _on_alarm(_signum, _frame):
+    raise Err("HELPER_TIMEOUT", f"helper took longer than {HELPER_TIMEOUT_SEC} s")
+
+
+if __name__ == "__main__":
+    for _sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        signal.signal(_sig, _exit_on_signal)
+    signal.signal(signal.SIGALRM, _on_alarm)
+    signal.alarm(HELPER_TIMEOUT_SEC)
+    sys.exit(main())

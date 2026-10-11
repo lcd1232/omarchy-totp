@@ -1,0 +1,5 @@
+#!/bin/sh
+# Runs the helper with the system Python in isolated mode: no user site
+# packages, no environment-driven imports (the helper is stdlib only).
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd) || exit 1
+exec /usr/bin/python3 -I "$HERE/enteauth_list.py" "$@"

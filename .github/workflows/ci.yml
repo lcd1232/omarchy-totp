@@ -10,7 +10,9 @@ jobs:
     container: archlinux:latest
     steps:
       - name: Install dependencies
-        run: pacman -Syu --noconfirm --needed git python libsodium
+        run: pacman -Syu --noconfirm --needed git python libsodium shellcheck
       - uses: actions/checkout@v4
       - name: Python tests
         run: python -m unittest discover -s tests -v
+      - name: Shellcheck
+        run: shellcheck bin/enteauth-list
