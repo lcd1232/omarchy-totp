@@ -1,7 +1,7 @@
 # Omarchy Ente Auth plugin — design
 
 Date: 2026-10-11
-Status: draft, awaiting review
+Status: approved
 
 ## Goal
 
@@ -67,6 +67,7 @@ bin/enteauth_list.py     new: reads DB + keyring, emits codes as JSON
 bin/enteauth-prefs       ported; stores last-used times only
 bin/enteauth-clipcheck   ported unchanged apart from names
 tests/                   unittest suite for the helper
+.github/workflows/ci.yml tests + shellcheck + manifest check
 README.md, LICENSE       MIT, credits the reference plugin
 ```
 
@@ -155,6 +156,23 @@ Omarchy with the Quickshell shell. No Python packages.
   SQLite DB, run the helper with an injected key, check JSON and that no
   `secret` appears; one corrupted row gives `skipped: 1`.
 - Each error code path.
+
+Development is test-driven: every helper behaviour above gets a failing test
+first, then the minimal code to pass it. libsodium is loaded via
+`ctypes.util.find_library("sodium")` (soname differs between distros).
+
+### CI
+
+GitHub Actions, `.github/workflows/ci.yml`, on push and pull request:
+
+- Job runs in an `archlinux:latest` container (matches Omarchy):
+  `pacman -Syu --noconfirm python libsodium shellcheck`.
+- `python -m unittest discover -s tests -v`
+- `shellcheck bin/enteauth-list bin/enteauth-prefs bin/enteauth-clipcheck`
+  (whichever are shell scripts).
+- `python -m json.tool manifest.json` (manifest is valid JSON).
+
+QML is not linted in CI (Quickshell/Omarchy types are not available there).
 
 Manual: `bin/enteauth-list --check` on the real DB; install with
 `omarchy plugin add <path> --enable`; check search, Enter, Shift+Enter, Ente
