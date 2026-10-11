@@ -18,3 +18,5 @@ jobs:
         run: node --test tests/model.test.mjs
       - name: Shellcheck
         run: shellcheck bin/enteauth-list bin/enteauth-clipcheck
+      - name: Manifest is valid JSON
+        run: python -m json.tool manifest.json > /dev/null
