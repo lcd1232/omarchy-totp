@@ -61,10 +61,6 @@ Panel {
   }
   readonly property bool closeOnCopy: boolSetting("closeOnCopy", true)
   readonly property bool notifyOnCopy: boolSetting("notifyOnCopy", true)
-  readonly property string sortMode: {
-    var v = String(settings && settings.sortMode || "recent")
-    return (v === "alpha" || v === "ente") ? v : "recent"
-  }
   readonly property int clipboardClearSec: {
     var raw = settings ? settings.clipboardClearSec : undefined
     var n = parseInt(String(raw === undefined || raw === null ? 20 : raw), 10)
@@ -72,87 +68,10 @@ Panel {
     return Math.min(n, 600)
   }
 
-  Component.onCompleted: {
-    loadPrefs()
-    svc.check()
-  }
-
-  // ---------- Recent use ----------
-  // Stored as entry keys (Ente ids) only, never codes or seeds. All file
-  // access goes through bin/enteauth-prefs, which keeps the state folder
-  // private (0700, owned by you, no symlinks) and writes via temp file +
-  // rename. Read once at startup; this panel is the only writer.
-  property var used: ({})
-  property bool _prefsDirty: false   // changed while a write was running
-  property bool _prefsTouched: false // changed since startup
-  readonly property string prefsToolPath: {
-    var base = pluginDir
-    if (base.length && base.charAt(base.length - 1) !== "/") base += "/"
-    return base + "bin/enteauth-prefs"
-  }
-
-  function loadPrefs() {
-    if (prefsRead.running || !prefsToolPath.endsWith("/bin/enteauth-prefs")) return
-    prefsRead.command = [prefsToolPath, "read"]
-    prefsRead.running = true
-  }
-
-  // One write at a time; a change made while one is running is written next.
-  function savePrefs() {
-    if (!prefsToolPath.endsWith("/bin/enteauth-prefs")) return
-    _prefsTouched = true
-    if (prefsWrite.running) { _prefsDirty = true; return }
-    _prefsDirty = false
-    prefsWrite.command = [prefsToolPath, "write"]
-    prefsWrite.stdinEnabled = true
-    prefsWrite.running = true
-  }
-
-  Process {
-    id: prefsRead
-    running: false
-    command: []
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        // A change made before the read finished wins over the stored copy.
-        if (root._prefsTouched) return
-        try {
-          var d = JSON.parse(text.length <= 262144 ? text : "")
-          root.used = (d && typeof d.used === "object" && d.used) ? d.used : {}
-        } catch (e) {
-          root.used = {}
-        }
-      }
-    }
-  }
-
-  Process {
-    id: prefsWrite
-    running: false
-    command: []
-    stdinEnabled: false
-    onStarted: {
-      write(JSON.stringify({ used: root.used }) + "\n")
-      stdinEnabled = false // EOF: the helper has the document
-    }
-    onExited: {
-      stdinEnabled = false
-      if (root._prefsDirty) root.savePrefs()
-    }
-  }
-
-  function markUsed(entry) {
-    var key = Model.entryKey(entry)
-    if (!key) return
-    var next = Object.assign({}, used)
-    next[key] = Math.floor(Date.now() / 1000)
-    used = next
-    savePrefs()
-  }
+  Component.onCompleted: svc.check()
 
   // ---------- List ----------
-  readonly property var rows: Model.rankEntries(svc.entries, searchText, used, sortMode)
+  readonly property var rows: Model.rankEntries(svc.entries, searchText)
   readonly property var selectedRow: rows.length ? rows[Math.min(selectedIndex, rows.length - 1)] : null
   readonly property var selectedState: selectedRow ? Model.codeState(selectedRow.entry, nowSec) : null
 
@@ -201,7 +120,6 @@ Panel {
     code = String(code || "").replace(/\s+/g, "")
     if (!/^[0-9]{1,10}$/.test(code)) return
     copiedKey = Model.entryKey(entry)
-    markUsed(entry)
     // --sensitive asks clipboard managers that honour the hint not to keep it.
     // The code goes in on stdin, never on argv: wl-copy stays running in the
     // background and its command line is visible to every user via ps/procfs.

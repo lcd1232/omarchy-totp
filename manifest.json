@@ -16,15 +16,12 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "sortMode": "recent",
       "closeOnCopy": true,
       "notifyOnCopy": true,
       "clipboardClearSec": 20,
       "demoMode": false
     },
     "schema": [
-      { "key": "sortMode", "type": "enum", "label": "Sort accounts by",
-        "options": ["recent", "alpha", "ente"], "defaultValue": "recent" },
       { "key": "closeOnCopy", "type": "boolean", "label": "Close the panel after copying a code", "defaultValue": true },
       { "key": "notifyOnCopy", "type": "boolean", "label": "Show a notification after copying", "defaultValue": true },
       { "key": "clipboardClearSec", "type": "integer",

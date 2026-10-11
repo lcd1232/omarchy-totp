@@ -19,7 +19,7 @@ function formatCode(code) {
   return s
 }
 
-// Stable key for recent-use. The Ente entity id when there is one.
+// Stable key for a row (copied-row highlight). The Ente entity id when there is one.
 function entryKey(entry) {
   if (!entry) return ""
   if (entry.id) return "id:" + String(entry.id)
@@ -70,9 +70,9 @@ function matchScore(entry, q) {
   return j === q.length ? 4 : -1
 }
 
-// Filter by query, then order: match quality, Ente-pinned, then sortMode
-// ("recent": last copied here; "ente": Ente's own position; else A-Z).
-function rankEntries(entries, query, used, sortMode) {
+// Filter by query, then order: match quality, Ente-pinned, most recently
+// used in Ente (codeDisplay.lastUsedAt, newest first), then A-Z.
+function rankEntries(entries, query) {
   var q = String(query || "").trim().toLowerCase()
   var rows = []
   var list = entries || []
@@ -80,14 +80,12 @@ function rankEntries(entries, query, used, sortMode) {
     var e = list[i]
     var score = matchScore(e, q)
     if (score < 0) continue
-    rows.push({ e: e, score: score, pinned: e.pinned === true,
-      used: Number(used && used[entryKey(e)]) || 0, position: Number(e.position) || 0, index: i })
+    rows.push({ e: e, score: score, pinned: e.pinned === true, used: Number(e.lastUsedAt) || 0, index: i })
   }
   rows.sort(function(a, b) {
     if (a.score !== b.score) return a.score - b.score
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-    if (sortMode === "recent" && a.used !== b.used) return b.used - a.used
-    if (sortMode === "ente") return a.position !== b.position ? a.position - b.position : a.index - b.index
+    if (a.used !== b.used) return b.used - a.used
     var ai = String(a.e.issuer || "").toLowerCase(), bi = String(b.e.issuer || "").toLowerCase()
     if (ai !== bi) return ai < bi ? -1 : 1
     var aa = String(a.e.account || "").toLowerCase(), ba = String(b.e.account || "").toLowerCase()

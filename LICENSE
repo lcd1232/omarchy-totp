@@ -22,7 +22,7 @@ SOFTWARE.
 
 ---
 
-Panel.qml, Service.qml, Model.js, bin/enteauth-prefs and bin/enteauth-clipcheck
+Panel.qml, Service.qml, Model.js and bin/enteauth-clipcheck
 are derived from omarchy-proton-authenticator
 (https://github.com/navjottomer/omarchy-proton-authenticator), MIT License,
 Copyright (c) 2026 mapski

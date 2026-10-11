@@ -12,30 +12,36 @@ const e = (issuer, extra = {}) => ({ id: issuer.toLowerCase(), issuer, account: 
 const ids = rows => rows.map(r => r.entry.id)
 
 test("Ente-pinned entries come first", () => {
-  const rows = M.rankEntries([e("Alpha"), e("Beta", { pinned: true }), e("Gamma")], "", {}, "alpha")
+  const rows = M.rankEntries([e("Alpha"), e("Beta", { pinned: true }), e("Gamma")], "")
   assert.deepEqual(ids(rows), ["beta", "alpha", "gamma"])
   assert.equal(rows[0].pinned, true)
   assert.equal(rows[1].pinned, false)
 })
 
 test("match quality beats pinning", () => {
-  const rows = M.rankEntries([e("GitHub"), e("Legit", { pinned: true })], "git", {}, "alpha")
+  const rows = M.rankEntries([e("GitHub"), e("Legit", { pinned: true })], "git")
   assert.deepEqual(ids(rows), ["github", "legit"])
 })
 
-test("recent sort uses last-used times", () => {
-  const used = { "id:alpha": 10, "id:gamma": 20 }
-  assert.deepEqual(ids(M.rankEntries([e("Alpha"), e("Beta"), e("Gamma")], "", used, "recent")),
-    ["gamma", "alpha", "beta"])
+test("most recently used in Ente first, then A-Z", () => {
+  const list = [e("Alpha"), e("Beta", { lastUsedAt: 10 }), e("Gamma", { lastUsedAt: 20 }), e("Delta")]
+  assert.deepEqual(ids(M.rankEntries(list, "")), ["gamma", "beta", "alpha", "delta"])
 })
 
-test("ente sort uses position, then helper order", () => {
-  const list = [e("A", { position: 2 }), e("B", { position: 0 }), e("C", { position: 2 }), e("D")]
-  assert.deepEqual(ids(M.rankEntries(list, "", {}, "ente")), ["b", "d", "a", "c"])
+test("pinned beats recently used; recency orders within pinned", () => {
+  const list = [e("Alpha", { lastUsedAt: 99 }), e("Beta", { pinned: true, lastUsedAt: 1 }),
+    e("Gamma", { pinned: true, lastUsedAt: 5 })]
+  assert.deepEqual(ids(M.rankEntries(list, "")), ["gamma", "beta", "alpha"])
 })
 
-test("unknown sort mode falls back to alphabetical", () => {
-  assert.deepEqual(ids(M.rankEntries([e("Zed"), e("Abe")], "", {}, "vault")), ["abe", "zed"])
+test("recency applies within the same match quality", () => {
+  const list = [e("GitHub"), e("GitLab", { lastUsedAt: 3 })]
+  assert.deepEqual(ids(M.rankEntries(list, "git")), ["gitlab", "github"])
+})
+
+test("same name sorts by account", () => {
+  const list = [{ id: "2", issuer: "Google", account: "zed@x" }, { id: "1", issuer: "Google", account: "abe@x" }]
+  assert.deepEqual(ids(M.rankEntries(list, "")), ["1", "2"])
 })
 
 test("error hints name Ente Auth", () => {

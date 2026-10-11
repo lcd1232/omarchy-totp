@@ -8,8 +8,8 @@ window, no network.
 
 - **Launcher-style search.** The search field has focus as soon as the panel
   opens; Enter copies the top match.
-- **Ente pins and recent first.** Accounts you pinned in Ente Auth come first;
-  the rest are ordered by when you last copied them here.
+- **Ente pins and recent first.** Accounts you pinned in Ente Auth come first,
+  then the ones you used most recently in Ente Auth, then A–Z.
 - **Next code too.** Shift+Enter copies the code for the next period.
 - **Follows your theme.** Built from the stock Omarchy panel parts.
 - **Clipboard hygiene.** Codes are copied with `--sensitive` and cleared after
@@ -42,8 +42,7 @@ o.bind("SUPER + CTRL + U", "Ente Auth", "omarchy-shell shell toggle lcd1232.ente
 ```
 
 Update with `omarchy plugin update lcd1232.ente-auth`; remove with
-`omarchy plugin remove lcd1232.ente-auth` and delete
-`~/.local/state/lcd1232.ente-auth/` (last-used times).
+`omarchy plugin remove lcd1232.ente-auth`.
 
 ## Usage
 
@@ -57,7 +56,8 @@ Update with `omarchy plugin update lcd1232.ente-auth`; remove with
 | Esc | close |
 
 Click a row to copy its code. Right-click the bar icon to reload. To pin an
-account, pin it in Ente Auth.
+account, pin it in Ente Auth. Order follows Ente Auth's own "recently used";
+copying from the panel does not change it.
 
 From scripts: `omarchy-shell lcd1232.ente-auth toggle` (also `open`, `close`,
 `refresh`, `clearClipboard`).
@@ -68,7 +68,6 @@ From scripts: `omarchy-shell lcd1232.ente-auth toggle` (also `open`, `close`,
 
 | Key | Default | Meaning |
 |---|---|---|
-| `sortMode` | `recent` | after Ente-pinned accounts: `recent` (last copied first, then A–Z), `alpha`, or `ente` (Ente Auth's order) |
 | `closeOnCopy` | `true` | close the panel after copying |
 | `notifyOnCopy` | `true` | show a notification naming the copied account |
 | `clipboardClearSec` | `20` | seconds before a copied code is cleared (`0` = never) |
@@ -99,8 +98,7 @@ them, which it does each time it starts.
   helper process; the shell only holds labels and codes.
 - **Nothing decrypted touches the disk.** The database is opened read-only.
 - **Codes never on a command line.** Codes go to `wl-copy` on stdin.
-- **Stored data.** Only last-used times, in
-  `~/.local/state/lcd1232.ente-auth/prefs.json` (private folder, no symlinks).
+- **No stored data.** The plugin keeps no files of its own.
 
 Like every Omarchy plugin, this runs as unsandboxed code in your shell. Review
 it before installing.
