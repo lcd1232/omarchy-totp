@@ -127,4 +127,4 @@ node --test tests/model.test.mjs
 
 Panel, model and helpers are derived from
 [omarchy-proton-authenticator](https://github.com/navjottomer/omarchy-proton-authenticator)
-(MIT). See `LICENSE`.
+(MIT).
