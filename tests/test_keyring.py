@@ -34,7 +34,21 @@ class ReadKeysTest(unittest.TestCase):
         self.assertEqual(ea.read_keys(tool), {"auth_secret_key": KEY_B64, "key": "x"})
 
     def test_no_item_is_not_signed_in(self):
+        # lookup fails and search finds nothing either.
         self.assertErr("NOT_SIGNED_IN", ea.read_keys, self.tool("exit 1"))
+
+    def test_locked_item_is_keyring_locked(self):
+        # A locked (or dismissed-prompt) item: lookup exits 1 silently, but
+        # search without --unlock still lists the item's attributes.
+        tool = self.tool('[ "$1" = search ] || exit 1\n'
+                         '[ "$*" = "search account io.ente.auth.secureStorage" ] || exit 9\n'
+                         "printf '[/org/freedesktop/secrets/collection/login/4]\\nlabel = x\\n'")
+        self.assertErr("KEYRING_LOCKED", ea.read_keys, tool)
+
+    def test_secret_service_error_is_keyring_locked(self):
+        # e.g. no Secret Service running: secret-tool reports on stderr.
+        self.assertErr("KEYRING_LOCKED", ea.read_keys,
+                       self.tool("echo 'secret-tool: Cannot autolaunch D-Bus' >&2; exit 1"))
 
     def test_empty_secret_is_locked(self):
         self.assertErr("KEYRING_LOCKED", ea.read_keys, self.tool("exit 0"))

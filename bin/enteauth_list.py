@@ -186,21 +186,32 @@ def parse_otpauth(uri: str) -> dict | None:
     }
 
 
-def read_keys(secret_tool: str = SECRET_TOOL) -> dict:
-    """Ente Auth's flutter_secure_storage values from the Secret Service."""
+def _secret_tool(secret_tool: str, command: str) -> subprocess.CompletedProcess:
     try:
-        proc = subprocess.run(  # fixed argv, no shell
-            [secret_tool, "lookup", "account", KEYRING_ACCOUNT],
+        return subprocess.run(  # fixed argv, no shell
+            [secret_tool, command, "account", KEYRING_ACCOUNT],
             stdin=subprocess.DEVNULL, capture_output=True, timeout=SECRET_TOOL_TIMEOUT_SEC, check=False,
         )
     except FileNotFoundError as e:
         raise Err("DEPS_MISSING", "secret-tool not found (install package: libsecret)") from e
     except subprocess.TimeoutExpired as e:
         raise Err("HELPER_TIMEOUT", "secret-tool did not answer (keyring prompt open?)") from e
+
+
+def read_keys(secret_tool: str = SECRET_TOOL) -> dict:
+    """Ente Auth's flutter_secure_storage values from the Secret Service."""
+    proc = _secret_tool(secret_tool, "lookup")
     out = proc.stdout
     if len(out) > KEYRING_MAX_BYTES:
         raise Err("UNSUPPORTED_SCHEMA", "keyring item too large")
     if proc.returncode != 0:
+        if proc.stderr.strip():  # no Secret Service, D-Bus error, ...
+            raise Err("KEYRING_LOCKED", "Secret Service unavailable — unlock the login keyring")
+        # lookup also fails silently for a locked item; search (without
+        # --unlock) still lists a locked item's attributes. Its output is
+        # only checked for emptiness, never kept.
+        if _secret_tool(secret_tool, "search").stdout.strip():
+            raise Err("KEYRING_LOCKED", "Ente Auth's keyring item is locked — unlock the login keyring")
         raise Err("NOT_SIGNED_IN", "no Ente Auth item in the keyring")
     if not out.strip():
         raise Err("KEYRING_LOCKED", "empty secret — unlock the login keyring")
