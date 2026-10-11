@@ -15,8 +15,10 @@ import hashlib
 import hmac
 import json
 import os
+import sqlite3
 import struct
 import subprocess
+import time
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -30,6 +32,10 @@ KEYRING_ACCOUNT = "io.ente.auth.secureStorage"
 SECRET_TOOL = "/usr/bin/secret-tool" if os.path.exists("/usr/bin/secret-tool") else "secret-tool"
 SECRET_TOOL_TIMEOUT_SEC = 10   # a keyring unlock prompt left open, etc.
 KEYRING_MAX_BYTES = 64 * 1024  # flutter_secure_storage JSON; a few hundred bytes in practice
+MAX_ENTRIES = 1000
+MAX_LABEL_CHARS = 256          # issuer / account, truncated for display
+MAX_ID_CHARS = 128
+DB_BUSY_RETRY_SEC = 0.2
 
 # libsodium secretstream tags (crypto_secretstream_xchacha20poly1305_TAG_*).
 TAG_MESSAGE = 0
@@ -216,3 +222,75 @@ def select_vault(keys: dict, data_dir: Path) -> tuple[Path, bytes]:
             raise Err("DECRYPT_FAILED", f"{key_name} has unexpected length {len(key)}")
         return path, key
     raise Err("NOT_SIGNED_IN", "no Ente Auth key in the keyring")
+
+
+def iso_time(epoch: int) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
+
+
+def load_rows(db_path: Path) -> list[tuple]:
+    """(id, _generatedID, encryptedData, header) per row, read-only."""
+    for attempt in (0, 1):
+        try:
+            con = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True, timeout=0)
+            try:
+                return con.execute(
+                    "SELECT id, _generatedID, encryptedData, header FROM entities ORDER BY _generatedID"
+                ).fetchall()
+            finally:
+                con.close()
+        except sqlite3.OperationalError as e:
+            text = str(e)
+            if "locked" in text or "busy" in text:
+                if attempt == 0:
+                    time.sleep(DB_BUSY_RETRY_SEC)
+                    continue
+                raise Err("DB_BUSY", "Ente Auth database is busy") from e
+            if "no such table" in text or "no such column" in text:
+                raise Err("UNSUPPORTED_SCHEMA", "unexpected Ente Auth database layout") from e
+            raise Err("DB_MISSING", f"cannot read Ente Auth database ({type(e).__name__})") from e
+        except sqlite3.DatabaseError as e:
+            raise Err("UNSUPPORTED_SCHEMA", f"not a readable database ({type(e).__name__})") from e
+    raise AssertionError("unreachable")
+
+
+def list_entries(window: int, now: int | None = None, data_dir: Path | None = None,
+                 keys: dict | None = None) -> dict:
+    data_dir = DATA_DIR if data_dir is None else data_dir
+    now = int(time.time()) if now is None else now
+    # Before touching the keyring: no DB means Ente Auth was never set up here.
+    if not any((data_dir / name).is_file() for name in (ONLINE_DB, OFFLINE_DB)):
+        raise Err("DB_MISSING", f"no Ente Auth database in {data_dir}")
+    db_path, key = select_vault(read_keys() if keys is None else keys, data_dir)
+    rows = load_rows(db_path)
+    if len(rows) > MAX_ENTRIES:
+        raise Err("OUTPUT_TOO_LARGE", f"more than {MAX_ENTRIES} entries")
+    entries: list[dict] = []
+    skipped = 0
+    for entity_id, generated_id, data, header in rows:
+        try:
+            plain = secretstream_decrypt(
+                key, base64.b64decode(header, validate=True), base64.b64decode(data, validate=True))
+            uri = json.loads(plain.decode("utf-8"))
+            if not isinstance(uri, str):
+                raise ValueError("payload is not a string")
+            otp = parse_otpauth(uri)
+            if otp is None or otp["trashed"]:
+                continue
+            seed = b32decode_secret(otp["secret"])
+        except (DecryptError, ValueError):  # binascii/JSON/Unicode errors are ValueErrors
+            skipped += 1
+            continue
+        entries.append({
+            "id": (str(entity_id) if entity_id else f"local-{generated_id}")[:MAX_ID_CHARS],
+            "issuer": otp["issuer"][:MAX_LABEL_CHARS],
+            "account": otp["account"][:MAX_LABEL_CHARS],
+            "period": otp["period"],
+            "digits": otp["digits"],
+            "pinned": otp["pinned"],
+            "position": otp["position"],
+            **code_window(seed, otp["digits"], otp["algorithm"], otp["period"], now, window),
+        })
+    if rows and skipped == len(rows):
+        raise Err("DECRYPT_FAILED", "no entry could be decrypted (wrong key?)")
+    return {"ok": True, "updatedAt": iso_time(now), "entries": entries, "skipped": skipped, "error": None}
