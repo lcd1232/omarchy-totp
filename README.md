@@ -4,6 +4,13 @@ Your [Ente Auth](https://ente.io/auth) 2FA codes in the Omarchy bar. Open the
 panel, type a few letters, press Enter: the code is on your clipboard. No app
 window, no network.
 
+<p align="center">
+  <img src="screenshots/panel.png" alt="Ente Auth panel in the Omarchy bar" width="360">
+  <img src="screenshots/search.png" alt="Searching accounts" width="360">
+</p>
+
+Screenshots use demo mode (`demoMode true`), so the accounts are fake.
+
 ## Features
 
 - **Launcher-style search.** The search field has focus as soon as the panel
