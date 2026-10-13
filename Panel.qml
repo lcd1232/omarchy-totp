@@ -75,6 +75,10 @@ Panel {
   readonly property var selectedRow: rows.length ? rows[Math.min(selectedIndex, rows.length - 1)] : null
   readonly property var selectedState: selectedRow ? Model.codeState(selectedRow.entry, nowSec) : null
 
+  // Setup or read error: nothing to search, so only the message is shown.
+  readonly property bool setupError: !svc.ok && !!svc.error
+  onSetupErrorChanged: if (setupError && opened) errorKeys.forceActiveFocus()
+
   // Install command for a missing app or package, shown with a Copy button.
   readonly property string installCommand: (!svc.ok && svc.error) ? Model.installCommand(svc.error) : ""
   property bool installCopied: false
@@ -423,9 +427,25 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: searchField
+    focusTarget: root.setupError ? errorKeys : searchField
     contentWidth: panel.fittedContentWidth(Style.space(360))
     contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(560))
+
+    // Takes keyboard focus while the search field is hidden (setup errors),
+    // so Esc and Tab still work.
+    Item {
+      id: errorKeys
+      width: 0
+      height: 0
+      Keys.onPressed: function(event) {
+        var shift = event.modifiers & Qt.ShiftModifier
+        if (event.key === Qt.Key_Escape) root.close()
+        else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
+          root.switchPanel(shift || event.key === Qt.Key_Backtab ? -1 : 1)
+        else return
+        event.accepted = true
+      }
+    }
 
     Column {
       id: column
@@ -437,6 +457,7 @@ Panel {
       TextField {
         id: searchField
         width: parent.width
+        visible: !root.setupError
         placeholderText: "Search accounts"
         font.family: root.ff
         font.pixelSize: Style.font.body
@@ -467,7 +488,7 @@ Panel {
         }
       }
 
-      PanelSeparator { id: separatorTop; foreground: root.barForeground }
+      PanelSeparator { id: separatorTop; visible: !root.setupError; foreground: root.barForeground }
 
       Column {
         id: listSection
@@ -477,6 +498,7 @@ Panel {
         Item {
           id: listHeader
           width: parent.width
+          visible: !root.setupError
           implicitHeight: sectionTitle.implicitHeight
 
           PanelSectionHeader {
@@ -503,6 +525,18 @@ Panel {
           text: root.statusLine
           textFormat: Text.PlainText
           color: (!svc.ok && svc.error) ? root.urgent : root.dimForeground
+          font.family: root.ff
+          font.pixelSize: Style.font.bodySmall
+          wrapMode: Text.WordWrap
+        }
+
+        Text {
+          id: installHintText
+          width: parent.width
+          visible: text.length > 0
+          text: root.setupError ? Model.installHint(svc.error) : ""
+          textFormat: Text.PlainText
+          color: root.dimForeground
           font.family: root.ff
           font.pixelSize: Style.font.bodySmall
           wrapMode: Text.WordWrap
@@ -558,6 +592,7 @@ Panel {
             var fixed = searchField.height + separatorTop.height + separatorA.height
               + listHeader.height + footer.height
               + (statusText.visible ? statusText.height + listSection.spacing : 0)
+              + (installHintText.visible ? installHintText.height + listSection.spacing : 0)
               + (installRow.visible ? installRow.height + listSection.spacing : 0)
               + column.spacing * 4 + listSection.spacing
             return Math.max(Style.space(44), cardCap - panel.verticalContentInset - fixed)

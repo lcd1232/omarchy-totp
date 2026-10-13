@@ -102,8 +102,8 @@ function errorHint(error) {
   if (!error) return ""
   var code = String(error.code || "")
   var hints = {
-    APP_MISSING: "Ente Auth is not installed",
-    DEPS_MISSING: "Some packages this needs are missing",
+    APP_MISSING: "Ente Auth isn't installed",
+    DEPS_MISSING: "Some packages this plugin needs aren't installed",
     DB_MISSING: "Ente Auth has no data yet — open it and sign in once",
     NOT_SIGNED_IN: "Not signed in to Ente Auth — open it and sign in",
     KEYRING_LOCKED: "Keyring is locked — unlock it and try again",
@@ -121,6 +121,13 @@ function errorHint(error) {
 function installCommand(error) {
   var cmd = String((error && error.install) || "")
   return /^omarchy pkg (aur )?add( [a-z0-9][a-z0-9@._+-]*)+$/.test(cmd) ? cmd : ""
+}
+
+// The line above the install command.
+function installHint(error) {
+  if (!installCommand(error)) return ""
+  return (error.code === "APP_MISSING" ? "Install it" : "Install them")
+    + " by running this command in a terminal:"
 }
 
 // Copying uses wl-copy, so it can't work while wl-clipboard is what's missing.

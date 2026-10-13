@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs"
 // Model.js is a QML JS library (".pragma library"); load it as a plain script.
 const src = readFileSync(new URL("../Model.js", import.meta.url), "utf8").replace(/^\.pragma library\s*$/m, "")
 const names = ["parseList", "formatCode", "entryKey", "codeState", "refreshAt", "matchScore",
-  "rankEntries", "errorHint", "skippedHint", "statusHint", "installCommand", "canCopyCommand"]
+  "rankEntries", "errorHint", "skippedHint", "statusHint", "installCommand", "canCopyCommand", "installHint"]
 const M = new Function(`${src}\nreturn { ${names.join(", ")} }`)()
 
 const e = (issuer, extra = {}) => ({ id: issuer.toLowerCase(), issuer, account: "", ...extra })
@@ -45,7 +45,8 @@ test("same name sorts by account", () => {
 })
 
 test("error hints are plain sentences without codes", () => {
-  assert.equal(M.errorHint({ code: "APP_MISSING" }), "Ente Auth is not installed")
+  assert.equal(M.errorHint({ code: "APP_MISSING" }), "Ente Auth isn't installed")
+  assert.equal(M.errorHint({ code: "DEPS_MISSING" }), "Some packages this plugin needs aren't installed")
   assert.equal(M.errorHint({ code: "DB_MISSING" }), "Ente Auth has no data yet — open it and sign in once")
   assert.equal(M.errorHint({ code: "NOT_SIGNED_IN" }), "Not signed in to Ente Auth — open it and sign in")
   assert.equal(M.errorHint({ code: "DB_BUSY" }), "Ente Auth is busy — try again")
@@ -64,6 +65,16 @@ test("install command is only shown when it is an omarchy pkg add command", () =
   for (const bad of [undefined, "", "rm -rf ~", "omarchy pkg add x; rm -rf ~", "omarchy pkg add $(id)", "omarchy pkg add"])
     assert.equal(M.installCommand({ install: bad }), "", String(bad))
   assert.equal(M.installCommand(null), "")
+})
+
+test("install hint tells the user to run the command", () => {
+  assert.equal(M.installHint({ code: "APP_MISSING", install: "omarchy pkg aur add ente-auth-bin" }),
+    "Install it by running this command in a terminal:")
+  assert.equal(M.installHint({ code: "DEPS_MISSING", install: "omarchy pkg add libsodium" }),
+    "Install them by running this command in a terminal:")
+  assert.equal(M.installHint({ code: "APP_MISSING" }), "")
+  assert.equal(M.installHint({ code: "APP_MISSING", install: "rm -rf ~" }), "")
+  assert.equal(M.installHint(null), "")
 })
 
 test("copy button needs wl-clipboard", () => {
