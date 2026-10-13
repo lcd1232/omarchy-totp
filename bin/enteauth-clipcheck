@@ -1,6 +1,5 @@
 #!/bin/sh
 # enteauth-clipcheck: does the Wayland clipboard still hold the code we copied?
-# From navjottomer/omarchy-proton-authenticator (MIT), based on io.github.mapski.proton-authenticator.
 #
 # Reads the expected code (1-10 ASCII digits) on stdin, never argv, and prints
 # exactly one fixed token on stdout: "match" or "nomatch". Panel.qml runs this
