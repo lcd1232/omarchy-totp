@@ -490,9 +490,88 @@ Panel {
 
       PanelSeparator { id: separatorTop; visible: !root.setupError; foreground: root.barForeground }
 
+      // Setup or read error: what went wrong, what to do, and the command
+      // that fixes it (if any), in place of the list.
+      Column {
+        id: errorView
+        width: parent.width
+        visible: root.setupError
+        spacing: Style.space(10)
+
+        Text {
+          width: parent.width
+          text: root.setupError ? Model.errorHint(svc.error) : ""
+          textFormat: Text.PlainText
+          color: root.urgent
+          font.family: root.ff
+          font.pixelSize: Style.font.body
+          font.bold: true
+          wrapMode: Text.WordWrap
+        }
+
+        Text {
+          width: parent.width
+          visible: text.length > 0
+          text: root.setupError ? Model.installHint(svc.error) : ""
+          textFormat: Text.PlainText
+          color: root.dimForeground
+          font.family: root.ff
+          font.pixelSize: Style.font.bodySmall
+          wrapMode: Text.WordWrap
+        }
+
+        // The command as a code block, with a copy button like a code
+        // snippet on GitHub.
+        Rectangle {
+          id: commandBlock
+          width: parent.width
+          visible: root.installCommand.length > 0
+          implicitHeight: Math.max(commandText.implicitHeight, copyCommandButton.visible ? copyCommandButton.height : 0)
+            + Style.space(8) * 2
+          radius: Style.cornerRadius
+          color: Style.normalFillFor(root.barForeground, root.barForeground, root.urgent)
+          border.width: Style.normalBorderWidth
+          border.color: Style.normalBorderFor(root.barForeground, root.barForeground, root.urgent)
+
+          // Selectable, so it can still be copied by hand without wl-clipboard.
+          TextEdit {
+            id: commandText
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(10)
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - Style.space(10) * 2
+              - (copyCommandButton.visible ? copyCommandButton.width + Style.space(6) : 0)
+            readOnly: true
+            selectByMouse: true
+            textFormat: TextEdit.PlainText
+            wrapMode: TextEdit.WrapAtWordBoundaryOrAnywhere
+            text: root.installCommand
+            color: root.barForeground
+            font.family: root.ff
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          PanelActionButton {
+            id: copyCommandButton
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(4)
+            anchors.verticalCenter: parent.verticalCenter
+            visible: Model.canCopyCommand(root.installCommand)
+            iconText: root.installCopied ? "󰄬" : "󰆏"
+            tooltipText: root.installCopied ? "Copied" : "Copy"
+            foreground: root.installCopied ? root.barForeground : root.dimForeground
+            hoverColor: root.barForeground
+            fontFamily: root.ff
+            fontSize: Style.font.iconSmall
+            onClicked: root.copyInstallCommand()
+          }
+        }
+      }
+
       Column {
         id: listSection
         width: parent.width
+        visible: !root.setupError
         spacing: Style.space(6)
 
         Item {
@@ -521,63 +600,13 @@ Panel {
         Text {
           id: statusText
           width: parent.width
-          visible: text.length > 0
+          visible: text.length > 0 && !root.setupError
           text: root.statusLine
           textFormat: Text.PlainText
           color: (!svc.ok && svc.error) ? root.urgent : root.dimForeground
           font.family: root.ff
           font.pixelSize: Style.font.bodySmall
           wrapMode: Text.WordWrap
-        }
-
-        Text {
-          id: installHintText
-          width: parent.width
-          visible: text.length > 0
-          text: root.setupError ? Model.installHint(svc.error) : ""
-          textFormat: Text.PlainText
-          color: root.dimForeground
-          font.family: root.ff
-          font.pixelSize: Style.font.bodySmall
-          wrapMode: Text.WordWrap
-        }
-
-        Item {
-          id: installRow
-          width: parent.width
-          visible: root.installCommand.length > 0
-          implicitHeight: Math.max(installText.implicitHeight, copyInstallButton.implicitHeight)
-
-          // Selectable, so it can still be copied by hand without wl-clipboard.
-          TextEdit {
-            id: installText
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - (copyInstallButton.visible ? copyInstallButton.width + Style.space(8) : 0)
-            readOnly: true
-            selectByMouse: true
-            textFormat: TextEdit.PlainText
-            wrapMode: TextEdit.WrapAnywhere
-            text: root.installCommand
-            color: root.barForeground
-            font.family: root.ff
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          Button {
-            id: copyInstallButton
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            visible: Model.canCopyCommand(root.installCommand)
-            text: root.installCopied ? "Copied" : "Copy"
-            fontSize: Style.font.bodySmall
-            foreground: root.barForeground
-            fontFamily: root.ff
-            horizontalPadding: Style.spacing.controlPaddingX
-            verticalPadding: Style.spacing.controlPaddingY
-            bordered: true
-            onClicked: root.copyInstallCommand()
-          }
         }
 
         // Only the list scrolls. A Flickable rather than a ListView: the model
@@ -592,8 +621,6 @@ Panel {
             var fixed = searchField.height + separatorTop.height + separatorA.height
               + listHeader.height + footer.height
               + (statusText.visible ? statusText.height + listSection.spacing : 0)
-              + (installHintText.visible ? installHintText.height + listSection.spacing : 0)
-              + (installRow.visible ? installRow.height + listSection.spacing : 0)
               + column.spacing * 4 + listSection.spacing
             return Math.max(Style.space(44), cardCap - panel.verticalContentInset - fixed)
           }
