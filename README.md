@@ -114,12 +114,13 @@ it before installing.
 
 | Message | Fix |
 |---|---|
-| Ente Auth data not found | install Ente Auth, open it and sign in once |
-| Not signed in to Ente Auth | sign in to Ente Auth (or choose offline mode) |
+| Ente Auth is not installed | run the command shown in the panel (Copy puts it on the clipboard) |
+| Some packages this needs are missing | run the `omarchy pkg add …` command shown in the panel |
+| Ente Auth has no data yet | open Ente Auth and sign in once |
+| Not signed in to Ente Auth | open Ente Auth and sign in (or choose offline mode) |
 | Keyring is locked | unlock your login keyring and reopen the panel |
-| Ente Auth is busy | retry; Ente Auth was writing its database |
+| Ente Auth is busy | try again; Ente Auth was writing its database |
 | N entries could not be read | open Ente Auth so it re-syncs; report if it persists |
-| Missing dependency | install the packages under [Requirements](#requirements) |
 
 Check the setup without showing codes: `bin/enteauth-list --check`.
 

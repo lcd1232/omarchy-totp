@@ -28,6 +28,7 @@ class MainTest(unittest.TestCase):
         self.dir = Path(self.tmp.name)
         make_db(self.dir / ea.ONLINE_DB, [("a", *encrypt_row(otpauth()))])
         patches = [mock.patch.object(ea, "DATA_DIR", self.dir),
+                   mock.patch.object(ea, "missing_packages", return_value=[]),
                    mock.patch.object(ea, "read_keys", return_value={"auth_secret_key": KEY_B64})]
         for p in patches:
             p.start()
@@ -53,6 +54,26 @@ class MainTest(unittest.TestCase):
             rc, out = run_main()
         self.assertEqual(rc, 1)
         self.assertEqual((out["ok"], out["entries"], out["error"]["code"]), (False, [], "KEYRING_LOCKED"))
+
+    def test_missing_packages_give_one_install_command(self):
+        with mock.patch.object(ea, "missing_packages", return_value=["libsodium", "wl-clipboard"]), \
+             mock.patch.object(ea, "list_entries", side_effect=AssertionError("vault read")):
+            for args in ((), ("--check",)):
+                rc, out = run_main(*args)
+                self.assertEqual(rc, 1)
+                self.assertEqual(out["error"]["code"], "DEPS_MISSING")
+                self.assertEqual(out["error"]["install"], "omarchy pkg add libsodium wl-clipboard")
+
+    def test_install_command_reaches_json(self):
+        err = ea.Err("APP_MISSING", "Ente Auth is not installed", install="omarchy pkg aur add ente-auth-bin")
+        with mock.patch.object(ea, "list_entries", side_effect=err):
+            rc, out = run_main()
+        self.assertEqual(out["error"]["install"], "omarchy pkg aur add ente-auth-bin")
+
+    def test_errors_without_install_have_no_install_field(self):
+        with mock.patch.object(ea, "read_keys", side_effect=ea.Err("NOT_SIGNED_IN", "no")):
+            rc, out = run_main()
+        self.assertNotIn("install", out["error"])
 
     def test_unexpected_exception_hides_message(self):
         with mock.patch.object(ea, "list_entries", side_effect=RuntimeError("SECRET=JBSWY3DP")):
@@ -84,6 +105,19 @@ class DemoTest(unittest.TestCase):
         # Some recently used, some never: shows the recent-first ordering.
         used = [e["lastUsedAt"] for e in out["entries"]]
         self.assertTrue(any(used) and not all(used))
+
+
+class MissingPackagesTest(unittest.TestCase):
+    def test_reports_each_missing_package_once(self):
+        present = {"secret-tool", "wl-copy"}
+        with mock.patch.object(ea.shutil, "which", side_effect=lambda n: f"/usr/bin/{n}" if n in present else None), \
+             mock.patch.object(ea.ctypes.util, "find_library", return_value=None):
+            self.assertEqual(ea.missing_packages(), ["libsodium", "wl-clipboard", "libnotify"])
+
+    def test_nothing_missing(self):
+        with mock.patch.object(ea.shutil, "which", side_effect=lambda n: f"/usr/bin/{n}"), \
+             mock.patch.object(ea.ctypes.util, "find_library", return_value="libsodium.so.26"):
+            self.assertEqual(ea.missing_packages(), [])
 
 
 class WrapperTest(unittest.TestCase):

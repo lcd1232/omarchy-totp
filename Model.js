@@ -96,24 +96,36 @@ function rankEntries(entries, query) {
   return out
 }
 
-// Human-readable status for helper error codes.
+// What the panel says for each helper error code. The code itself is not
+// shown; an unknown code falls back to the helper's message.
 function errorHint(error) {
   if (!error) return ""
   var code = String(error.code || "")
   var hints = {
-    DEPS_MISSING: "Missing dependency (libsodium, libsecret)",
-    DB_MISSING: "Ente Auth data not found — open Ente Auth and sign in once",
-    NOT_SIGNED_IN: "Not signed in to Ente Auth",
-    KEYRING_LOCKED: "Keyring is locked — unlock it and retry",
-    DB_BUSY: "Ente Auth is busy, retry",
-    UNSUPPORTED_SCHEMA: "Unsupported Ente Auth version",
-    HELPER_TIMEOUT: "Timed out reading the keyring — unlock it and retry",
-    OUTPUT_TOO_LARGE: "Too many accounts to display",
-    DECRYPT_FAILED: "Could not decrypt Ente Auth data"
+    APP_MISSING: "Ente Auth is not installed",
+    DEPS_MISSING: "Some packages this needs are missing",
+    DB_MISSING: "Ente Auth has no data yet — open it and sign in once",
+    NOT_SIGNED_IN: "Not signed in to Ente Auth — open it and sign in",
+    KEYRING_LOCKED: "Keyring is locked — unlock it and try again",
+    DB_BUSY: "Ente Auth is busy — try again",
+    UNSUPPORTED_SCHEMA: "This Ente Auth version isn't supported",
+    HELPER_TIMEOUT: "Timed out reading the keyring — unlock it and try again",
+    OUTPUT_TOO_LARGE: "Too many accounts to show",
+    DECRYPT_FAILED: "Couldn't decrypt Ente Auth data"
   }
-  var hint = hints[code] || ""
-  var msg = String(error.message || code || "Error")
-  return hint ? hint + " (" + code + ")" : msg
+  return hints[code] || String(error.message || code || "Error")
+}
+
+// The install command for an error, if any. Only plain `omarchy pkg [aur] add`
+// commands are shown, since the user is expected to paste it into a terminal.
+function installCommand(error) {
+  var cmd = String((error && error.install) || "")
+  return /^omarchy pkg (aur )?add( [a-z0-9][a-z0-9@._+-]*)+$/.test(cmd) ? cmd : ""
+}
+
+// Copying uses wl-copy, so it can't work while wl-clipboard is what's missing.
+function canCopyCommand(cmd) {
+  return cmd.length > 0 && !/(^| )wl-clipboard( |$)/.test(cmd)
 }
 
 function skippedHint(n) {

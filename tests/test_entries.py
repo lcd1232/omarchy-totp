@@ -82,10 +82,21 @@ class ListEntriesTest(unittest.TestCase):
         self.assertEqual((len(e["issuer"]), len(e["account"])), (256, 256))
 
     def test_missing_db_checked_before_keyring(self):
-        with mock.patch.object(ea, "read_keys", side_effect=AssertionError("keyring touched")):
+        # App installed (any existing file stands in for it), never opened.
+        with mock.patch.object(ea, "ENTE_APP", __file__), \
+             mock.patch.object(ea, "read_keys", side_effect=AssertionError("keyring touched")):
             with self.assertRaises(ea.Err) as cm:
                 ea.list_entries(3, now=59, data_dir=self.dir)
         self.assertEqual(cm.exception.code, "DB_MISSING")
+        self.assertEqual(cm.exception.install, "")
+
+    def test_app_not_installed_gives_install_command(self):
+        with mock.patch.object(ea, "ENTE_APP", str(self.dir / "no-such-app")), \
+             mock.patch.object(ea, "read_keys", side_effect=AssertionError("keyring touched")):
+            with self.assertRaises(ea.Err) as cm:
+                ea.list_entries(3, now=59, data_dir=self.dir)
+        self.assertEqual(cm.exception.code, "APP_MISSING")
+        self.assertEqual(cm.exception.install, "omarchy pkg aur add ente-auth-bin")
 
     def test_reads_keyring_when_keys_not_given(self):
         make_db(self.db, [("a", *encrypt_row(otpauth()))])

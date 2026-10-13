@@ -16,6 +16,7 @@ import hashlib
 import hmac
 import json
 import os
+import shutil
 import signal
 import sqlite3
 import struct
@@ -31,6 +32,8 @@ DATA_DIR = Path.home() / ".local/share/io.ente.auth"
 ONLINE_DB = ".ente.authenticator.db"
 OFFLINE_DB = ".ente.offline_authenticator.db"
 KEYRING_ACCOUNT = "io.ente.auth.secureStorage"
+ENTE_APP = "/usr/bin/enteauth"                # from the ente-auth-bin package
+INSTALL_APP = "omarchy pkg aur add ente-auth-bin"
 # Absolute path first so a PATH entry can't substitute the keyring client.
 SECRET_TOOL = "/usr/bin/secret-tool" if os.path.exists("/usr/bin/secret-tool") else "secret-tool"
 SECRET_TOOL_TIMEOUT_SEC = 10   # a keyring unlock prompt left open, etc.
@@ -53,10 +56,11 @@ TAG_FINAL = 3
 class Err(Exception):
     """Fatal error, reported to the panel as {"error": {"code", "message"}}."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, install: str = ""):
         super().__init__(message)
         self.code = code
         self.message = message
+        self.install = install  # shell command that fixes it, shown with a Copy button
 
 
 class DecryptError(Exception):
@@ -283,6 +287,8 @@ def list_entries(window: int, now: int | None = None, data_dir: Path | None = No
     now = int(time.time()) if now is None else now
     # Before touching the keyring: no DB means Ente Auth was never set up here.
     if not any((data_dir / name).is_file() for name in (ONLINE_DB, OFFLINE_DB)):
+        if not os.path.exists(ENTE_APP):
+            raise Err("APP_MISSING", "Ente Auth is not installed", install=INSTALL_APP)
         raise Err("DB_MISSING", f"no Ente Auth database in {data_dir}")
     db_path, key = select_vault(read_keys() if keys is None else keys, data_dir)
     rows = load_rows(db_path)
@@ -320,9 +326,29 @@ def list_entries(window: int, now: int | None = None, data_dir: Path | None = No
     return {"ok": True, "updatedAt": iso_time(now), "entries": entries, "skipped": skipped, "error": None}
 
 
-def fail(code: str, message: str) -> dict:
-    return {"ok": False, "updatedAt": iso_time(int(time.time())), "entries": [],
-            "error": {"code": code, "message": str(message)[:MAX_MESSAGE_CHARS]}}
+def fail(code: str, message: str, install: str = "") -> dict:
+    error = {"code": code, "message": str(message)[:MAX_MESSAGE_CHARS]}
+    if install:
+        error["install"] = install
+    return {"ok": False, "updatedAt": iso_time(int(time.time())), "entries": [], "error": error}
+
+
+def missing_packages() -> list[str]:
+    """Packages the plugin needs at runtime that are not installed."""
+    checks = [
+        ("libsodium", lambda: ctypes.util.find_library("sodium")),
+        ("libsecret", lambda: shutil.which("secret-tool")),
+        ("wl-clipboard", lambda: shutil.which("wl-copy") and shutil.which("wl-paste")),
+        ("libnotify", lambda: shutil.which("notify-send")),
+    ]
+    return [package for package, present in checks if not present()]
+
+
+def require_packages() -> None:
+    missing = missing_packages()
+    if missing:
+        raise Err("DEPS_MISSING", "missing packages: " + ", ".join(missing),
+                  install="omarchy pkg add " + " ".join(missing))
 
 
 def emit(payload: dict) -> None:
@@ -382,6 +408,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.demo:
             emit(demo(window))
             return 0
+        require_packages()
         if args.check:
             emit(check())
             return 0
@@ -391,7 +418,7 @@ def main(argv: list[str] | None = None) -> int:
         emit(payload)
         return 0
     except Err as e:
-        emit(fail(e.code, e.message))
+        emit(fail(e.code, e.message, e.install))
         return 1
     except Exception as e:  # noqa: BLE001 - fail closed with a JSON error
         # Only the exception type: its text could quote decrypted data.

@@ -75,6 +75,27 @@ Panel {
   readonly property var selectedRow: rows.length ? rows[Math.min(selectedIndex, rows.length - 1)] : null
   readonly property var selectedState: selectedRow ? Model.codeState(selectedRow.entry, nowSec) : null
 
+  // Install command for a missing app or package, shown with a Copy button.
+  readonly property string installCommand: (!svc.ok && svc.error) ? Model.installCommand(svc.error) : ""
+  property bool installCopied: false
+
+  function copyInstallCommand() {
+    if (!Model.canCopyCommand(installCommand) || copyProcess.running) return
+    // Not a secret, so no --sensitive; still on stdin like the codes.
+    _pendingCopy = installCommand
+    copyProcess.command = ["wl-copy"]
+    copyProcess.stdinEnabled = true
+    copyProcess.running = true
+    installCopied = true
+    installCopiedTimer.restart()
+  }
+
+  Timer {
+    id: installCopiedTimer
+    interval: 2000
+    onTriggered: root.installCopied = false
+  }
+
   readonly property string statusLine: Model.statusHint({
     refreshing: svc.refreshing, ok: svc.ok, error: svc.error, total: svc.entries.length,
     shown: rows.length, query: searchText, skipped: svc.skipped
@@ -487,6 +508,44 @@ Panel {
           wrapMode: Text.WordWrap
         }
 
+        Item {
+          id: installRow
+          width: parent.width
+          visible: root.installCommand.length > 0
+          implicitHeight: Math.max(installText.implicitHeight, copyInstallButton.implicitHeight)
+
+          // Selectable, so it can still be copied by hand without wl-clipboard.
+          TextEdit {
+            id: installText
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - (copyInstallButton.visible ? copyInstallButton.width + Style.space(8) : 0)
+            readOnly: true
+            selectByMouse: true
+            textFormat: TextEdit.PlainText
+            wrapMode: TextEdit.WrapAnywhere
+            text: root.installCommand
+            color: root.barForeground
+            font.family: root.ff
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Button {
+            id: copyInstallButton
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            visible: Model.canCopyCommand(root.installCommand)
+            text: root.installCopied ? "Copied" : "Copy"
+            fontSize: Style.font.bodySmall
+            foreground: root.barForeground
+            fontFamily: root.ff
+            horizontalPadding: Style.spacing.controlPaddingX
+            verticalPadding: Style.spacing.controlPaddingY
+            bordered: true
+            onClicked: root.copyInstallCommand()
+          }
+        }
+
         // Only the list scrolls. A Flickable rather than a ListView: the model
         // is rebuilt on every refresh and a ListView would jump to the top.
         Flickable {
@@ -499,6 +558,7 @@ Panel {
             var fixed = searchField.height + separatorTop.height + separatorA.height
               + listHeader.height + footer.height
               + (statusText.visible ? statusText.height + listSection.spacing : 0)
+              + (installRow.visible ? installRow.height + listSection.spacing : 0)
               + column.spacing * 4 + listSection.spacing
             return Math.max(Style.space(44), cardCap - panel.verticalContentInset - fixed)
           }
@@ -526,12 +586,14 @@ Panel {
         }
       }
 
-      PanelSeparator { id: separatorA; foreground: root.barForeground }
+      PanelSeparator { id: separatorA; visible: root.rows.length > 0; foreground: root.barForeground }
 
       // Next code for the selected account, and the keys.
       Item {
         id: footer
         width: parent.width
+        // Copy hints only make sense when there is something to copy.
+        visible: root.rows.length > 0
         implicitHeight: Math.max(nextText.implicitHeight, hintText.implicitHeight)
 
         Text {
