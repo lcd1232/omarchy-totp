@@ -31,7 +31,7 @@ Screenshots use demo mode (`demoMode true`), so the accounts are fake.
 - [Omarchy](https://omarchy.org) with the Quickshell-based Omarchy shell
 - Ente Auth desktop (`ente-auth-bin` on the AUR), signed in (or in offline
   mode) and opened at least once on this machine
-- `libsodium`, `libsecret`, `wl-clipboard`, `libnotify`
+- `libsodium`, `libsecret`, `wl-clipboard`; `libnotify` (optional, for the "copied" notification)
 
 ```sh
 omarchy pkg add libsodium libsecret wl-clipboard libnotify
