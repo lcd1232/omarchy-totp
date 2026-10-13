@@ -39,21 +39,13 @@ Panel {
   property string copiedKey: ""
   property real nowSec: Date.now() / 1000
 
-  // Clipboard bookkeeping (see copyCode / clearClipboardIfOurs).
-  property string _clipboardCode: ""
+  // Text waiting to be written to wl-copy's stdin (see copyProcess).
   property string _pendingCopy: ""
-  property string _pendingCheck: ""
-  property string _checkingCode: ""
 
   readonly property string pluginDir: {
     var s = String(Qt.resolvedUrl("."))
     if (s.indexOf("file://") === 0) s = s.substring(7)
     return s
-  }
-  readonly property string clipcheckPath: {
-    var base = pluginDir
-    if (base.length && base.charAt(base.length - 1) !== "/") base += "/"
-    return base + "bin/enteauth-clipcheck"
   }
 
   function boolSetting(name, fallback) {
@@ -63,12 +55,6 @@ Panel {
   }
   readonly property bool closeOnCopy: boolSetting("closeOnCopy", true)
   readonly property bool notifyOnCopy: boolSetting("notifyOnCopy", true)
-  readonly property int clipboardClearSec: {
-    var raw = settings ? settings.clipboardClearSec : undefined
-    var n = parseInt(String(raw === undefined || raw === null ? 20 : raw), 10)
-    if (!isFinite(n) || n < 0) n = 20
-    return Math.min(n, 600)
-  }
 
   Component.onCompleted: svc.check()
 
@@ -156,8 +142,6 @@ Panel {
     copyProcess.command = ["wl-copy", "--sensitive"]
     copyProcess.stdinEnabled = true
     copyProcess.running = true
-    _clipboardCode = code
-    if (clipboardClearSec > 0) clipboardClearTimer.restart()
     if (notifyOnCopy) {
       var label = String(entry.issuer || "Account")
       if (entry.account) label += " · " + String(entry.account)
@@ -166,20 +150,6 @@ Panel {
     }
     if (closeOnCopy) closeAfterCopy.restart()
     else copiedTimer.restart()
-  }
-
-  // Clear the clipboard after clipboardClearSec, but only if it still holds
-  // the code we put there. The clipboard is never read into this long-lived
-  // process: bin/enteauth-clipcheck compares it and prints match/nomatch.
-  function clearClipboardIfOurs() {
-    if (!_clipboardCode || clipboardCheck.running) return
-    if (!/^[0-9]{1,10}$/.test(_clipboardCode)) { _clipboardCode = ""; return }
-    if (!clipcheckPath.endsWith("/bin/enteauth-clipcheck")) return
-    _pendingCheck = _clipboardCode
-    _checkingCode = _clipboardCode
-    clipboardCheck.command = ["/bin/sh", clipcheckPath]
-    clipboardCheck.stdinEnabled = true
-    clipboardCheck.running = true
   }
 
   onOpenedChanged: {
@@ -241,47 +211,6 @@ Panel {
     onExited: { root._pendingCopy = ""; stdinEnabled = false }
   }
 
-  Timer {
-    id: clipboardClearTimer
-    interval: Math.max(1, root.clipboardClearSec) * 1000
-    onTriggered: root.clearClipboardIfOurs()
-  }
-
-  Process {
-    id: clipboardCheck
-    running: false
-    command: []
-    stdinEnabled: false
-    stdout: StdioCollector {
-      id: clipboardCheckOut
-      waitForEnd: true
-    }
-    onStarted: {
-      write(root._pendingCheck)
-      root._pendingCheck = ""
-      stdinEnabled = false
-    }
-    onExited: {
-      root._pendingCheck = ""
-      stdinEnabled = false
-      var current = root._clipboardCode === root._checkingCode
-      if (current && clipboardCheckOut.text === "match\n") {
-        clearProcess.command = ["wl-copy", "--clear"]
-        clearProcess.running = true
-      }
-      if (current) root._clipboardCode = ""
-      root._checkingCode = ""
-    }
-  }
-
-  Timer {
-    interval: 10000
-    running: clipboardCheck.running
-    onTriggered: clipboardCheck.running = false
-  }
-
-  Process { id: clearProcess; running: false; command: [] }
-
   IpcHandler {
     target: root.ipcTarget
     function open(): void { root.open() }
@@ -290,7 +219,6 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refresh(); return "ok" }
-    function clearClipboard(): string { root.clearClipboardIfOurs(); return "ok" }
   }
 
   // ---------- Bar icon ----------

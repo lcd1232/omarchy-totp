@@ -435,7 +435,7 @@ def missing_packages() -> list[str]:
     checks = [
         ("libsodium", lambda: ctypes.util.find_library("sodium")),
         ("libsecret", lambda: shutil.which("secret-tool")),
-        ("wl-clipboard", lambda: shutil.which("wl-copy") and shutil.which("wl-paste")),
+        ("wl-clipboard", lambda: shutil.which("wl-copy")),
         # libnotify is not checked: without notify-send only the "copied"
         # notification is missing, the codes still work.
     ]

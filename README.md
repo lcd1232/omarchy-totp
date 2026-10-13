@@ -19,8 +19,8 @@ window, no network.
   installed app; a letter when Ente has no icon for the account.
 - **Next code too.** Shift+Enter copies the code for the next period.
 - **Follows your theme.** Built from the stock Omarchy panel parts.
-- **Clipboard hygiene.** Codes are copied with `--sensitive` and cleared after
-  20 seconds if they are still on the clipboard.
+- **Kept out of clipboard history.** Codes are copied with `--sensitive`, so
+  clipboard managers that honour it don't store them.
 - **No extra dependencies.** Python stdlib and libsodium, both already on
   Omarchy.
 
@@ -67,7 +67,7 @@ account, pin it in Ente Auth. Order follows Ente Auth's own "recently used";
 copying from the panel does not change it.
 
 From scripts: `omarchy-shell lcd1232.ente-auth toggle` (also `open`, `close`,
-`refresh`, `clearClipboard`).
+`refresh`).
 
 ## Settings
 
@@ -77,7 +77,6 @@ From scripts: `omarchy-shell lcd1232.ente-auth toggle` (also `open`, `close`,
 |---|---|---|
 | `closeOnCopy` | `true` | close the panel after copying |
 | `notifyOnCopy` | `true` | show a notification naming the copied account |
-| `clipboardClearSec` | `20` | seconds before a copied code is cleared (`0` = never) |
 | `demoMode` | `false` | fake accounts, for screenshots; never reads your data |
 
 ## How it works

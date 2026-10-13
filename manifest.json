@@ -18,15 +18,11 @@
     "defaults": {
       "closeOnCopy": true,
       "notifyOnCopy": true,
-      "clipboardClearSec": 20,
       "demoMode": false
     },
     "schema": [
       { "key": "closeOnCopy", "type": "boolean", "label": "Close the panel after copying a code", "defaultValue": true },
       { "key": "notifyOnCopy", "type": "boolean", "label": "Show a notification after copying", "defaultValue": true },
-      { "key": "clipboardClearSec", "type": "integer",
-        "label": "Clear copied code from clipboard after (seconds, 0 = never)",
-        "min": 0, "max": 600, "step": 5, "defaultValue": 20 },
       { "key": "demoMode", "type": "boolean", "label": "Demo mode (fake accounts, for screenshots)", "defaultValue": false }
     ]
   }

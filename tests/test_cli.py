@@ -111,10 +111,16 @@ class DemoTest(unittest.TestCase):
 
 class MissingPackagesTest(unittest.TestCase):
     def test_reports_each_missing_package_once(self):
-        present = {"secret-tool", "wl-copy"}
+        present = {"secret-tool", "wl-paste"}
         with mock.patch.object(ea.shutil, "which", side_effect=lambda n: f"/usr/bin/{n}" if n in present else None), \
              mock.patch.object(ea.ctypes.util, "find_library", return_value=None):
             self.assertEqual(ea.missing_packages(), ["libsodium", "wl-clipboard"])
+
+    def test_only_wl_copy_is_needed(self):
+        # Codes are only ever copied; the clipboard is never read.
+        with mock.patch.object(ea.shutil, "which", side_effect=lambda n: None if n == "wl-paste" else f"/usr/bin/{n}"), \
+             mock.patch.object(ea.ctypes.util, "find_library", return_value="libsodium.so.26"):
+            self.assertEqual(ea.missing_packages(), [])
 
     def test_notify_send_is_optional(self):
         # Without libnotify only the "copied" notification is lost; codes still work.
