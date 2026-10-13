@@ -9,7 +9,7 @@ import "Model.js" as Model
 
 // Ente Auth codes in the bar. Clicking the icon opens a
 // launcher-style panel: the search field has focus straight away, typing
-// filters, Enter copies. Styled like the stock panels (and navjottomer.sysmon):
+// filters, Enter copies. Styled like the stock panels:
 // every colour comes from the theme, and the chrome is the shared qs.Ui kit.
 //
 // Keys (handled by the search field; PanelKeyCatcher is not used because it

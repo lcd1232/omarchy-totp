@@ -129,9 +129,3 @@ Check the setup without showing codes: `bin/enteauth-list --check`.
 python3 -m unittest discover -s tests -v
 node --test tests/model.test.mjs
 ```
-
-## Credits
-
-Panel, model and helpers are derived from
-[omarchy-proton-authenticator](https://github.com/navjottomer/omarchy-proton-authenticator)
-(MIT).
