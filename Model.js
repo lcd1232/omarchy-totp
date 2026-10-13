@@ -96,24 +96,45 @@ function rankEntries(entries, query) {
   return out
 }
 
-// What the panel says for each helper error code. The code itself is not
-// shown; an unknown code falls back to the helper's message.
+// What the panel says for each helper error code: a short heading saying
+// what is wrong (errorHint) and a line saying what to do (errorDetail). The
+// code itself is not shown; an unknown code falls back to the helper's message.
 function errorHint(error) {
   if (!error) return ""
   var code = String(error.code || "")
   var hints = {
     APP_MISSING: "Ente Auth isn't installed",
     DEPS_MISSING: "Some packages this plugin needs aren't installed",
-    DB_MISSING: "Ente Auth has no data yet — open it and sign in once",
-    NOT_SIGNED_IN: "Not signed in to Ente Auth — open it and sign in",
-    KEYRING_LOCKED: "Keyring is locked — unlock it and try again",
-    DB_BUSY: "Ente Auth is busy — try again",
+    DB_MISSING: "Ente Auth isn't set up yet",
+    NOT_SIGNED_IN: "Not signed in to Ente Auth",
+    KEYRING_LOCKED: "Your keyring is locked",
+    DB_BUSY: "Ente Auth is busy",
     UNSUPPORTED_SCHEMA: "This Ente Auth version isn't supported",
-    HELPER_TIMEOUT: "Timed out reading the keyring — unlock it and try again",
+    HELPER_TIMEOUT: "Timed out reading the keyring",
     OUTPUT_TOO_LARGE: "Too many accounts to show",
     DECRYPT_FAILED: "Couldn't decrypt Ente Auth data"
   }
   return hints[code] || String(error.message || code || "Error")
+}
+
+function errorDetail(error) {
+  if (!error) return ""
+  var code = String(error.code || "")
+  if (code === "APP_MISSING" || code === "DEPS_MISSING") {
+    if (!installCommand(error)) return ""
+    return (code === "APP_MISSING" ? "Install it" : "Install them") + " by running this command in a terminal:"
+  }
+  var signIn = "Open Ente Auth and sign in (or choose offline mode). Your codes will appear here."
+  var details = {
+    DB_MISSING: signIn,
+    NOT_SIGNED_IN: signIn,
+    KEYRING_LOCKED: "Unlock it, then open this panel again.",
+    DB_BUSY: "It's saving its data. Try again in a moment.",
+    UNSUPPORTED_SCHEMA: "Check for an update to this plugin.",
+    HELPER_TIMEOUT: "Unlock your keyring, then open this panel again.",
+    DECRYPT_FAILED: "Open Ente Auth once so it can sync, then try again."
+  }
+  return details[code] || ""
 }
 
 // The install command for an error, if any. Only plain `omarchy pkg [aur] add`
@@ -121,13 +142,6 @@ function errorHint(error) {
 function installCommand(error) {
   var cmd = String((error && error.install) || "")
   return /^omarchy pkg (aur )?add( [a-z0-9][a-z0-9@._+-]*)+$/.test(cmd) ? cmd : ""
-}
-
-// The line above the install command.
-function installHint(error) {
-  if (!installCommand(error)) return ""
-  return (error.code === "APP_MISSING" ? "Install it" : "Install them")
-    + " by running this command in a terminal:"
 }
 
 // Copying uses wl-copy, so it can't work while wl-clipboard is what's missing.

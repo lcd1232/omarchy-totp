@@ -512,7 +512,7 @@ Panel {
         Text {
           width: parent.width
           visible: text.length > 0
-          text: root.setupError ? Model.installHint(svc.error) : ""
+          text: root.setupError ? Model.errorDetail(svc.error) : ""
           textFormat: Text.PlainText
           color: root.dimForeground
           font.family: root.ff

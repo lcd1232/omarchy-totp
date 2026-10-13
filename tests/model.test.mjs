@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs"
 // Model.js is a QML JS library (".pragma library"); load it as a plain script.
 const src = readFileSync(new URL("../Model.js", import.meta.url), "utf8").replace(/^\.pragma library\s*$/m, "")
 const names = ["parseList", "formatCode", "entryKey", "codeState", "refreshAt", "matchScore",
-  "rankEntries", "errorHint", "skippedHint", "statusHint", "installCommand", "canCopyCommand", "installHint"]
+  "rankEntries", "errorHint", "skippedHint", "statusHint", "installCommand", "canCopyCommand", "errorDetail"]
 const M = new Function(`${src}\nreturn { ${names.join(", ")} }`)()
 
 const e = (issuer, extra = {}) => ({ id: issuer.toLowerCase(), issuer, account: "", ...extra })
@@ -44,19 +44,35 @@ test("same name sorts by account", () => {
   assert.deepEqual(ids(M.rankEntries(list, "")), ["1", "2"])
 })
 
-test("error hints are plain sentences without codes", () => {
+test("error headings are short and say what is wrong", () => {
   assert.equal(M.errorHint({ code: "APP_MISSING" }), "Ente Auth isn't installed")
   assert.equal(M.errorHint({ code: "DEPS_MISSING" }), "Some packages this plugin needs aren't installed")
-  assert.equal(M.errorHint({ code: "DB_MISSING" }), "Ente Auth has no data yet — open it and sign in once")
-  assert.equal(M.errorHint({ code: "NOT_SIGNED_IN" }), "Not signed in to Ente Auth — open it and sign in")
-  assert.equal(M.errorHint({ code: "DB_BUSY" }), "Ente Auth is busy — try again")
+  assert.equal(M.errorHint({ code: "DB_MISSING" }), "Ente Auth isn't set up yet")
+  assert.equal(M.errorHint({ code: "NOT_SIGNED_IN" }), "Not signed in to Ente Auth")
+  assert.equal(M.errorHint({ code: "KEYRING_LOCKED" }), "Your keyring is locked")
+  assert.equal(M.errorHint({ code: "DB_BUSY" }), "Ente Auth is busy")
   assert.equal(M.errorHint({ code: "OTHER", message: "boom" }), "boom")
-  for (const code of ["DEPS_MISSING", "KEYRING_LOCKED", "UNSUPPORTED_SCHEMA", "HELPER_TIMEOUT",
-    "OUTPUT_TOO_LARGE", "DECRYPT_FAILED"]) {
+  for (const code of ["UNSUPPORTED_SCHEMA", "HELPER_TIMEOUT", "OUTPUT_TOO_LARGE", "DECRYPT_FAILED"]) {
     const hint = M.errorHint({ code, message: "raw" })
     assert.ok(hint.length > 0 && hint !== "raw" && !hint.includes(code), code)
   }
   assert.doesNotMatch(JSON.stringify(names.map(n => String(M[n]))), /Proton/)
+})
+
+test("error detail says what to do", () => {
+  const signIn = "Open Ente Auth and sign in (or choose offline mode). Your codes will appear here."
+  assert.equal(M.errorDetail({ code: "NOT_SIGNED_IN" }), signIn)
+  assert.equal(M.errorDetail({ code: "DB_MISSING" }), signIn)
+  assert.equal(M.errorDetail({ code: "KEYRING_LOCKED" }), "Unlock it, then open this panel again.")
+  assert.equal(M.errorDetail({ code: "DB_BUSY" }), "It's saving its data. Try again in a moment.")
+  assert.equal(M.errorDetail({ code: "APP_MISSING", install: "omarchy pkg aur add ente-auth-bin" }),
+    "Install it by running this command in a terminal:")
+  assert.equal(M.errorDetail({ code: "DEPS_MISSING", install: "omarchy pkg add libsodium" }),
+    "Install them by running this command in a terminal:")
+  assert.equal(M.errorDetail({ code: "APP_MISSING" }), "")
+  assert.equal(M.errorDetail({ code: "APP_MISSING", install: "rm -rf ~" }), "")
+  assert.equal(M.errorDetail({ code: "OTHER" }), "")
+  assert.equal(M.errorDetail(null), "")
 })
 
 test("install command is only shown when it is an omarchy pkg add command", () => {
@@ -65,16 +81,6 @@ test("install command is only shown when it is an omarchy pkg add command", () =
   for (const bad of [undefined, "", "rm -rf ~", "omarchy pkg add x; rm -rf ~", "omarchy pkg add $(id)", "omarchy pkg add"])
     assert.equal(M.installCommand({ install: bad }), "", String(bad))
   assert.equal(M.installCommand(null), "")
-})
-
-test("install hint tells the user to run the command", () => {
-  assert.equal(M.installHint({ code: "APP_MISSING", install: "omarchy pkg aur add ente-auth-bin" }),
-    "Install it by running this command in a terminal:")
-  assert.equal(M.installHint({ code: "DEPS_MISSING", install: "omarchy pkg add libsodium" }),
-    "Install them by running this command in a terminal:")
-  assert.equal(M.installHint({ code: "APP_MISSING" }), "")
-  assert.equal(M.installHint({ code: "APP_MISSING", install: "rm -rf ~" }), "")
-  assert.equal(M.installHint(null), "")
 })
 
 test("copy button needs wl-clipboard", () => {
@@ -93,7 +99,7 @@ test("status hint", () => {
   const base = { refreshing: false, ok: true, error: null, total: 2, shown: 2, query: "", skipped: 0 }
   assert.equal(M.statusHint(base), "")
   assert.equal(M.statusHint({ ...base, refreshing: true, total: 0, shown: 0 }), "Loading…")
-  assert.equal(M.statusHint({ ...base, ok: false, error: { code: "DB_BUSY" } }), "Ente Auth is busy — try again")
+  assert.equal(M.statusHint({ ...base, ok: false, error: { code: "DB_BUSY" } }), "Ente Auth is busy")
   assert.equal(M.statusHint({ ...base, total: 0, shown: 0 }), "No codes — add them in Ente Auth")
   assert.equal(M.statusHint({ ...base, shown: 0, query: "zz" }), "No matches")
   assert.equal(M.statusHint({ ...base, skipped: 2 }), "2 entries could not be read")
