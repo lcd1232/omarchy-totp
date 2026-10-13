@@ -27,7 +27,7 @@ import time
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 DATA_DIR = Path.home() / ".local/share/io.ente.auth"
 ONLINE_DB = ".ente.authenticator.db"
