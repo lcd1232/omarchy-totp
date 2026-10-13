@@ -142,12 +142,11 @@ Panel {
     copyProcess.command = ["wl-copy", "--sensitive"]
     copyProcess.stdinEnabled = true
     copyProcess.running = true
-    if (notifyOnCopy) {
-      var label = String(entry.issuer || "Account")
-      if (entry.account) label += " · " + String(entry.account)
+    // No account label: notify-send's argv is visible to every user, and the
+    // notification daemon may keep a history on disk.
+    if (notifyOnCopy)
       Quickshell.execDetached(["notify-send", "-a", "Authenticator", "-t", "2000",
-        isNext ? "Copied next code" : "Copied code", label])
-    }
+        "--transient", isNext ? "Copied next code" : "Copied code"])
     if (closeOnCopy) closeAfterCopy.restart()
     else copiedTimer.restart()
   }

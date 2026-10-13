@@ -77,7 +77,7 @@ From scripts: `omarchy-shell lcd1232.ente-auth toggle` (also `open`, `close`,
 | Key | Default | Meaning |
 |---|---|---|
 | `closeOnCopy` | `true` | close the panel after copying |
-| `notifyOnCopy` | `true` | show a notification naming the copied account |
+| `notifyOnCopy` | `true` | show a short "Copied code" notification (no account name) |
 | `demoMode` | `false` | fake accounts, for screenshots; never reads your data |
 
 ## How it works
