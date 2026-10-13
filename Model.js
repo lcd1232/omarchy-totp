@@ -110,7 +110,7 @@ function errorHint(error) {
     KEYRING_LOCKED: "Your keyring is locked",
     DB_BUSY: "Ente Auth is busy",
     UNSUPPORTED_SCHEMA: "This Ente Auth version isn't supported",
-    HELPER_TIMEOUT: "Timed out reading the keyring",
+    HELPER_TIMEOUT: "Timed out reading Ente Auth data",
     OUTPUT_TOO_LARGE: "Too many accounts to show",
     DECRYPT_FAILED: "Couldn't decrypt Ente Auth data"
   }
@@ -121,8 +121,10 @@ function errorDetail(error) {
   if (!error) return ""
   var code = String(error.code || "")
   if (code === "APP_MISSING" || code === "DEPS_MISSING") {
-    if (!installCommand(error)) return ""
-    return (code === "APP_MISSING" ? "Install it" : "Install them") + " by running this command in a terminal:"
+    if (installCommand(error))
+      return (code === "APP_MISSING" ? "Install it" : "Install them") + " by running this command in a terminal:"
+    return code === "APP_MISSING" ? "Install ente-auth-bin, then open this panel again."
+      : "Reinstall libsodium and libsecret, then open this panel again."
   }
   var signIn = "Open Ente Auth and sign in, or tap \"Use without backups\". Your codes will appear here."
   var details = {
@@ -131,7 +133,7 @@ function errorDetail(error) {
     KEYRING_LOCKED: "Unlock it, then open this panel again.",
     DB_BUSY: "It's saving its data. Try again in a moment.",
     UNSUPPORTED_SCHEMA: "Check for an update to this plugin.",
-    HELPER_TIMEOUT: "Unlock your keyring, then open this panel again.",
+    HELPER_TIMEOUT: "Unlock your keyring if it asks, then open this panel again.",
     DECRYPT_FAILED: "Open Ente Auth once so it can sync, then try again."
   }
   return details[code] || ""
@@ -192,4 +194,11 @@ function iconTint(hex, darkTheme) {
 function avatarLetter(entry) {
   var name = String((entry && entry.issuer) || "").trim() || String((entry && entry.account) || "").trim()
   return name ? name.charAt(0).toUpperCase() : ""
+}
+
+// file:// URL for an absolute path, with each path segment encoded.
+function fileUrl(path) {
+  var p = String(path || "")
+  if (p.charAt(0) !== "/") return ""
+  return "file://" + p.split("/").map(encodeURIComponent).join("/")
 }

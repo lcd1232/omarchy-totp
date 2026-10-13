@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs"
 // Model.js is a QML JS library (".pragma library"); load it as a plain script.
 const src = readFileSync(new URL("../Model.js", import.meta.url), "utf8").replace(/^\.pragma library\s*$/m, "")
 const names = ["parseList", "formatCode", "entryKey", "codeState", "refreshAt", "matchScore",
-  "rankEntries", "errorHint", "skippedHint", "statusHint", "installCommand", "canCopyCommand", "errorDetail", "iconTint", "isDarkColor", "avatarLetter"]
+  "rankEntries", "errorHint", "skippedHint", "statusHint", "installCommand", "canCopyCommand", "errorDetail", "iconTint", "isDarkColor", "avatarLetter", "fileUrl"]
 const M = new Function(`${src}\nreturn { ${names.join(", ")} }`)()
 
 const e = (issuer, extra = {}) => ({ id: issuer.toLowerCase(), issuer, account: "", ...extra })
@@ -69,8 +69,12 @@ test("error detail says what to do", () => {
     "Install it by running this command in a terminal:")
   assert.equal(M.errorDetail({ code: "DEPS_MISSING", install: "omarchy pkg add libsodium" }),
     "Install them by running this command in a terminal:")
-  assert.equal(M.errorDetail({ code: "APP_MISSING" }), "")
-  assert.equal(M.errorDetail({ code: "APP_MISSING", install: "rm -rf ~" }), "")
+  // No usable command: still say what to do.
+  assert.equal(M.errorDetail({ code: "APP_MISSING" }), "Install ente-auth-bin, then open this panel again.")
+  assert.equal(M.errorDetail({ code: "APP_MISSING", install: "rm -rf ~" }), "Install ente-auth-bin, then open this panel again.")
+  assert.equal(M.errorDetail({ code: "DEPS_MISSING" }), "Reinstall libsodium and libsecret, then open this panel again.")
+  assert.equal(M.errorHint({ code: "HELPER_TIMEOUT" }), "Timed out reading Ente Auth data")
+  assert.equal(M.errorDetail({ code: "HELPER_TIMEOUT" }), "Unlock your keyring if it asks, then open this panel again.")
   assert.equal(M.errorDetail({ code: "OTHER" }), "")
   assert.equal(M.errorDetail(null), "")
 })
@@ -136,4 +140,11 @@ test("avatar letter", () => {
   assert.equal(M.avatarLetter({ issuer: "", account: "jane@example.com" }), "J")
   assert.equal(M.avatarLetter({ issuer: "  ", account: "" }), "")
   assert.equal(M.avatarLetter({ issuer: "Яндекс" }), "Я")
+})
+
+test("icon file URL is encoded", () => {
+  assert.equal(M.fileUrl("/usr/share/enteauth/icons/github.svg"), "file:///usr/share/enteauth/icons/github.svg")
+  assert.equal(M.fileUrl("/a b/c#d?e%f.svg"), "file:///a%20b/c%23d%3Fe%25f.svg")
+  assert.equal(M.fileUrl(""), "")
+  assert.equal(M.fileUrl("relative.svg"), "")
 })

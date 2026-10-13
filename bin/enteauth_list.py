@@ -24,7 +24,6 @@ import struct
 import subprocess
 import sys
 import time
-import unicodedata
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -39,6 +38,13 @@ INSTALL_APP = "omarchy pkg aur add ente-auth-bin"
 # Icons bundled with the Ente Auth desktop app: its own set plus Simple Icons.
 ICON_ROOT = Path("/usr/share/enteauth/data/flutter_assets/assets")
 HEX_COLOR_RE = re.compile(r"^[0-9A-Fa-f]{6}$")
+# Ente's charMap (icon_utils.dart) for Simple Icons file names without a slug.
+SIMPLE_ICON_CHAR_MAP = {
+    "á": "a", "à": "a", "â": "a", "ä": "a", "ã": "a", "é": "e", "è": "e", "ê": "e", "ë": "e",
+    "í": "i", "ì": "i", "î": "i", "ï": "i", "ó": "o", "ò": "o", "ô": "o", "ö": "o",
+    "ú": "u", "ù": "u", "û": "u", "ü": "u", "ç": "c", "ñ": "n", "ř": "r", "š": "s", "ż": "z",
+    ".": "dot", "-": "", "&": "and", "+": "plus", ":": "", "/": "", "!": "", "_": "", "°": "", "'": "",
+}
 # Absolute path first so a PATH entry can't substitute the keyring client.
 SECRET_TOOL = "/usr/bin/secret-tool" if os.path.exists("/usr/bin/secret-tool") else "secret-tool"
 SECRET_TOOL_TIMEOUT_SEC = 10   # a keyring unlock prompt left open, etc.
@@ -290,7 +296,8 @@ def load_icon_index(root: Path) -> tuple[dict, dict]:
         key = _icon_key(title)
         entry = (f"custom-icons/icons/{slug if isinstance(slug, str) else key}.svg", icon.get("hex"))
         custom[key] = entry
-        for alt in icon.get("altNames") or []:
+        alt_names = icon.get("altNames")
+        for alt in alt_names if isinstance(alt_names, list) else []:
             if isinstance(alt, str):
                 custom[_icon_key(alt)] = entry
     simple: dict = {}
@@ -300,7 +307,7 @@ def load_icon_index(root: Path) -> tuple[dict, dict]:
             continue
         key = _icon_key(title)
         stem = slug if isinstance(slug, str) else "".join(
-            c for c in unicodedata.normalize("NFKD", key) if not unicodedata.combining(c)).strip()
+            SIMPLE_ICON_CHAR_MAP.get(c, c) for c in key).strip()
         simple[key] = (f"simple-icons/icons/{stem}.svg", icon.get("hex"))
     return custom, simple
 
@@ -429,7 +436,8 @@ def missing_packages() -> list[str]:
         ("libsodium", lambda: ctypes.util.find_library("sodium")),
         ("libsecret", lambda: shutil.which("secret-tool")),
         ("wl-clipboard", lambda: shutil.which("wl-copy") and shutil.which("wl-paste")),
-        ("libnotify", lambda: shutil.which("notify-send")),
+        # libnotify is not checked: without notify-send only the "copied"
+        # notification is missing, the codes still work.
     ]
     return [package for package, present in checks if not present()]
 

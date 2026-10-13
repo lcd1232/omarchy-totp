@@ -79,7 +79,9 @@ Panel {
 
   // Setup or read error: nothing to search, so only the message is shown.
   readonly property bool setupError: !svc.ok && !!svc.error
-  onSetupErrorChanged: if (setupError && opened) errorKeys.forceActiveFocus()
+  // The panel only applies focusTarget when it opens, so move focus here when
+  // an error appears or clears while it is open (e.g. after signing in).
+  onSetupErrorChanged: if (opened) (setupError ? errorKeys : searchField).forceActiveFocus()
 
   // Install command for a missing app or package, shown with a Copy button.
   readonly property string installCommand: (!svc.ok && svc.error) ? Model.installCommand(svc.error) : ""
@@ -365,7 +367,7 @@ Panel {
           id: iconImage
           anchors.fill: parent
           visible: status === Image.Ready && accountIcon.tint === ""
-          source: row.entry.icon ? "file://" + row.entry.icon : ""
+          source: Model.fileUrl(row.entry.icon)
           sourceSize: Qt.size(accountIcon.size * 3, accountIcon.size * 3)
           fillMode: Image.PreserveAspectFit
           smooth: true
@@ -598,6 +600,8 @@ Panel {
               - (copyCommandButton.visible ? copyCommandButton.width + Style.space(6) : 0)
             readOnly: true
             selectByMouse: true
+            // Selecting must not take focus from errorKeys (Esc, Tab).
+            activeFocusOnPress: false
             textFormat: TextEdit.PlainText
             wrapMode: TextEdit.WrapAtWordBoundaryOrAnywhere
             text: root.installCommand

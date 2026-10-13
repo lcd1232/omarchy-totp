@@ -21,17 +21,27 @@ def make_icon_root(root: Path) -> Path:
         {"title": "Broken", "slug": "../../outside", "hex": "112233"},
         {"title": "BadHex", "hex": "zzzzzz"},
         {"title": "NoFile"},
+        {"title": "Odd", "altNames": "ab"},
     ]}))
     (root / "simple-icons/_data/simple-icons.json").write_text(json.dumps([
         {"title": "Discord", "hex": "5865F2"},
         {"title": "Ente", "hex": "000000"},
         {"title": "Tailscale", "slug": "tailscale", "hex": "242424"},
         {"title": "Société Générale", "hex": "E9041E"},
+        {"title": "TP-Link", "hex": "4ACBD6"},
+        {"title": "mailbox.org", "hex": "3B88C3"},
+        {"title": "Let's Encrypt", "hex": "003A70"},
+        {"title": "Barnes & Noble", "hex": "000000"},
+        {"title": "Google+", "hex": "DD4B39"},
     ]))
     for rel in ("custom-icons/icons/github.svg", "custom-icons/icons/google.svg",
                 "custom-icons/icons/ente.svg", "custom-icons/icons/badhex.svg",
+                "custom-icons/icons/odd.svg",
                 "simple-icons/icons/discord.svg", "simple-icons/icons/ente.svg",
-                "simple-icons/icons/tailscale.svg", "simple-icons/icons/societegenerale.svg"):
+                "simple-icons/icons/tailscale.svg", "simple-icons/icons/societegenerale.svg",
+                "simple-icons/icons/tplink.svg", "simple-icons/icons/mailboxdotorg.svg",
+                "simple-icons/icons/letsencrypt.svg", "simple-icons/icons/barnesandnoble.svg",
+                "simple-icons/icons/googleplus.svg"):
         (root / rel).write_text("<svg/>")
     (root.parent / "outside.svg").write_text("<svg/>")
     return root
@@ -75,6 +85,17 @@ class ResolveIconTest(unittest.TestCase):
     def test_accented_simple_icon_without_slug(self):
         self.assertEqual(self.resolve("Société Générale"),
                          (self.path("simple-icons/icons/societegenerale.svg"), "E9041E"))
+
+    def test_simple_icon_names_follow_ente_char_map(self):
+        # Ente maps "." -> dot, "&" -> and, "+" -> plus and drops "-" and "'".
+        for name, stem in (("TP-Link", "tplink"), ("mailbox.org", "mailboxdotorg"),
+                           ("Let's Encrypt", "letsencrypt"), ("Barnes & Noble", "barnesandnoble"),
+                           ("Google+", "googleplus")):
+            with self.subTest(name=name):
+                self.assertEqual(self.resolve(name)[0], self.path(f"simple-icons/icons/{stem}.svg"))
+
+    def test_alt_names_must_be_a_list(self):
+        self.assertEqual(self.resolve("a"), ("", ""))
 
     def test_no_match_empty_name_or_missing_file(self):
         for name in ("Unknown Bank", "", "   ", "NoFile"):
