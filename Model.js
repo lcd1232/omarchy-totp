@@ -124,7 +124,7 @@ function errorDetail(error) {
     if (!installCommand(error)) return ""
     return (code === "APP_MISSING" ? "Install it" : "Install them") + " by running this command in a terminal:"
   }
-  var signIn = "Open Ente Auth and sign in (or choose offline mode). Your codes will appear here."
+  var signIn = "Open Ente Auth and sign in, or tap \"Use without backups\". Your codes will appear here."
   var details = {
     DB_MISSING: signIn,
     NOT_SIGNED_IN: signIn,

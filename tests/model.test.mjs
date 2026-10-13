@@ -60,7 +60,7 @@ test("error headings are short and say what is wrong", () => {
 })
 
 test("error detail says what to do", () => {
-  const signIn = "Open Ente Auth and sign in (or choose offline mode). Your codes will appear here."
+  const signIn = "Open Ente Auth and sign in, or tap \"Use without backups\". Your codes will appear here."
   assert.equal(M.errorDetail({ code: "NOT_SIGNED_IN" }), signIn)
   assert.equal(M.errorDetail({ code: "DB_MISSING" }), signIn)
   assert.equal(M.errorDetail({ code: "KEYRING_LOCKED" }), "Unlock it, then open this panel again.")

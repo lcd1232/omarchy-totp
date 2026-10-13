@@ -117,7 +117,7 @@ it before installing.
 | Ente Auth isn't installed | run the command shown in the panel (Copy puts it on the clipboard) |
 | Some packages this plugin needs aren't installed | run the `omarchy pkg add …` command shown in the panel |
 | Ente Auth isn't set up yet | open Ente Auth and sign in once |
-| Not signed in to Ente Auth | open Ente Auth and sign in (or choose offline mode) |
+| Not signed in to Ente Auth | open Ente Auth and sign in, or tap "Use without backups" |
 | Your keyring is locked | unlock your login keyring and reopen the panel |
 | Ente Auth is busy | try again; Ente Auth was writing its database |
 | N entries could not be read | open Ente Auth so it re-syncs; report if it persists |
