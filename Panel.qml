@@ -587,14 +587,6 @@ Panel {
             foreground: root.barForeground
             fontFamily: root.ff
           }
-
-          PanelSectionHeader {
-            anchors.right: parent.right
-            visible: root.rows.length > 0
-            text: String(root.rows.length)
-            foreground: root.barForeground
-            fontFamily: root.ff
-          }
         }
 
         Text {
