@@ -15,6 +15,10 @@ class ListEntriesTest(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.dir = Path(self.tmp.name)
         self.db = self.dir / ea.ONLINE_DB
+        # No icon set: entries carry empty icon fields (see test_icons.py).
+        p = mock.patch.object(ea, "ICON_ROOT", self.dir / "no-icons")
+        p.start()
+        self.addCleanup(p.stop)
 
     def run_list(self, window=3, now=59):
         return ea.list_entries(window, now=now, data_dir=self.dir, keys=KEYS)
@@ -30,6 +34,7 @@ class ListEntriesTest(unittest.TestCase):
         self.assertEqual(out["entries"][0], {
             "id": "ent-1", "issuer": "GitHub", "account": "me@example.com",
             "period": 30, "digits": 6, "pinned": True, "position": 2, "lastUsedAt": 42,
+            "icon": "", "iconColor": "",
             "counter": 1, "codes": ["287082", "359152", "969429"],
         })
         # Unsynced row (id NULL) falls back to the local row id.

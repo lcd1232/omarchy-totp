@@ -18,7 +18,14 @@ class ParseOtpauthTest(unittest.TestCase):
             "issuer": "GitHub", "account": "me@example.com", "secret": "JBSWY3DPEHPK3PXP",
             "digits": 8, "period": 60, "algorithm": "SHA256",
             "pinned": True, "trashed": False, "position": 4, "lastUsedAt": 1760000000123456,
+            "iconSrc": "", "iconID": "",
         })
+
+    def test_icon_choice(self):
+        p = ea.parse_otpauth(f"otpauth://totp/x?secret=AA&codeDisplay={cd(iconSrc='customIcon', iconID='github')}")
+        self.assertEqual((p["iconSrc"], p["iconID"]), ("customIcon", "github"))
+        p = ea.parse_otpauth(f"otpauth://totp/x?secret=AA&codeDisplay={cd(iconSrc=1, iconID=None)}")
+        self.assertEqual((p["iconSrc"], p["iconID"]), ("", ""))
 
     def test_defaults(self):
         p = ea.parse_otpauth("otpauth://totp/acct?secret=JBSWY3DPEHPK3PXP")

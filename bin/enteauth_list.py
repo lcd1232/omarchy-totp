@@ -16,6 +16,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import shutil
 import signal
 import sqlite3
@@ -23,6 +24,7 @@ import struct
 import subprocess
 import sys
 import time
+import unicodedata
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -34,6 +36,9 @@ OFFLINE_DB = ".ente.offline_authenticator.db"
 KEYRING_ACCOUNT = "io.ente.auth.secureStorage"
 ENTE_APP = "/usr/bin/enteauth"                # from the ente-auth-bin package
 INSTALL_APP = "omarchy pkg aur add ente-auth-bin"
+# Icons bundled with the Ente Auth desktop app: its own set plus Simple Icons.
+ICON_ROOT = Path("/usr/share/enteauth/data/flutter_assets/assets")
+HEX_COLOR_RE = re.compile(r"^[0-9A-Fa-f]{6}$")
 # Absolute path first so a PATH entry can't substitute the keyring client.
 SECRET_TOOL = "/usr/bin/secret-tool" if os.path.exists("/usr/bin/secret-tool") else "secret-tool"
 SECRET_TOOL_TIMEOUT_SEC = 10   # a keyring unlock prompt left open, etc.
@@ -157,6 +162,11 @@ def _display_int(display: dict, name: str) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
+def _display_str(display: dict, name: str) -> str:
+    value = display.get(name)
+    return value if isinstance(value, str) else ""
+
+
 def parse_otpauth(uri: str) -> dict | None:
     """Fields of an Ente otpauth URI; None for types other than TOTP."""
     u = urlparse(uri)
@@ -191,6 +201,8 @@ def parse_otpauth(uri: str) -> dict | None:
         "trashed": display.get("trashed") is True,
         "position": position,
         "lastUsedAt": max(0, _display_int(display, "lastUsedAt")),
+        "iconSrc": _display_str(display, "iconSrc"),
+        "iconID": _display_str(display, "iconID"),
     }
 
 
@@ -251,6 +263,75 @@ def select_vault(keys: dict, data_dir: Path) -> tuple[Path, bytes]:
     raise Err("NOT_SIGNED_IN", "no Ente Auth key in the keyring")
 
 
+def _icon_key(name: str) -> str:
+    return name.replace(" ", "").lower()
+
+
+def _icon_entries(path: Path) -> list:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    icons = data.get("icons") if isinstance(data, dict) else data
+    return [i for i in icons if isinstance(i, dict)] if isinstance(icons, list) else []
+
+
+def load_icon_index(root: Path) -> tuple[dict, dict]:
+    """Ente Auth's icon lookup tables: (custom, simple), key -> (relative path, hex).
+
+    Keys and file names follow Ente's IconUtils: title without spaces, lower case.
+    A missing or broken index just means no icons.
+    """
+    custom: dict = {}
+    for icon in _icon_entries(root / "custom-icons/_data/custom-icons.json"):
+        title, slug = icon.get("title"), icon.get("slug")
+        if not isinstance(title, str):
+            continue
+        key = _icon_key(title)
+        entry = (f"custom-icons/icons/{slug if isinstance(slug, str) else key}.svg", icon.get("hex"))
+        custom[key] = entry
+        for alt in icon.get("altNames") or []:
+            if isinstance(alt, str):
+                custom[_icon_key(alt)] = entry
+    simple: dict = {}
+    for icon in _icon_entries(root / "simple-icons/_data/simple-icons.json"):
+        title, slug = icon.get("title"), icon.get("slug")
+        if not isinstance(title, str):
+            continue
+        key = _icon_key(title)
+        stem = slug if isinstance(slug, str) else "".join(
+            c for c in unicodedata.normalize("NFKD", key) if not unicodedata.combining(c)).strip()
+        simple[key] = (f"simple-icons/icons/{stem}.svg", icon.get("hex"))
+    return custom, simple
+
+
+def resolve_icon(name: str, index: tuple[dict, dict], root: Path) -> tuple[str, str]:
+    """(absolute .svg path, RRGGBB colour or "") for an issuer or icon id, like Ente Auth.
+
+    Ente's own icons win over Simple Icons; "Google (work)" and "google.com" fall
+    back to the part before the bracket or dot. Only files inside `root` count.
+    """
+    title = _icon_key(name)
+    if not title:
+        return "", ""
+    candidates = [title] + [title.split(c)[0] for c in "(." if c in title]
+    for candidate in candidates:
+        for table in index:
+            if candidate not in table:
+                continue
+            rel, color = table[candidate]
+            try:
+                base = root.resolve()
+                path = (root / rel).resolve()
+            except OSError:
+                return "", ""
+            if path.suffix != ".svg" or not path.is_relative_to(base) or not path.is_file():
+                return "", ""
+            ok = isinstance(color, str) and HEX_COLOR_RE.match(color)
+            return str(path), color.upper() if ok else ""
+    return "", ""
+
+
 def iso_time(epoch: int) -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
 
@@ -281,6 +362,13 @@ def load_rows(db_path: Path) -> list[tuple]:
     raise AssertionError("unreachable")
 
 
+def _entry_icon(otp: dict, icons: tuple[dict, dict]) -> dict:
+    # An icon picked in Ente Auth wins over the one matching the issuer.
+    name = otp["iconID"] if otp["iconSrc"] and otp["iconID"] else otp["issuer"]
+    path, color = resolve_icon(name, icons, ICON_ROOT)
+    return {"icon": path, "iconColor": color}
+
+
 def list_entries(window: int, now: int | None = None, data_dir: Path | None = None,
                  keys: dict | None = None) -> dict:
     data_dir = DATA_DIR if data_dir is None else data_dir
@@ -296,6 +384,7 @@ def list_entries(window: int, now: int | None = None, data_dir: Path | None = No
         raise Err("OUTPUT_TOO_LARGE", f"more than {MAX_ENTRIES} entries")
     entries: list[dict] = []
     skipped = 0
+    icons = load_icon_index(ICON_ROOT) if rows else ({}, {})
     for entity_id, generated_id, data, header in rows:
         try:
             plain = secretstream_decrypt(
@@ -319,6 +408,7 @@ def list_entries(window: int, now: int | None = None, data_dir: Path | None = No
             "pinned": otp["pinned"],
             "position": otp["position"],
             "lastUsedAt": otp["lastUsedAt"],
+            **_entry_icon(otp, icons),
             **code_window(seed, otp["digits"], otp["algorithm"], otp["period"], now, window),
         })
     if rows and skipped == len(rows):
@@ -381,12 +471,14 @@ DEMO_ACCOUNTS = [  # issuer, account, seed, digits, pinned, last used (minutes a
 def demo(window: int, now: int | None = None) -> dict:
     now = int(time.time()) if now is None else now
     entries = []
+    icons = load_icon_index(ICON_ROOT)
     for i, (issuer, account, seed, digits, pinned, minutes_ago) in enumerate(DEMO_ACCOUNTS):
         entries.append({
             "id": f"demo-{i}", "issuer": issuer, "account": account, "period": 30,
             "digits": digits, "pinned": pinned, "position": i,
             # Ente stores lastUsedAt in microseconds.
             "lastUsedAt": (now - minutes_ago * 60) * 1_000_000 if minutes_ago else 0,
+            **dict(zip(("icon", "iconColor"), resolve_icon(issuer, icons, ICON_ROOT))),
             **code_window(b32decode_secret(seed), digits, "SHA1", 30, now, window),
         })
     return {"ok": True, "demo": True, "updatedAt": iso_time(now), "entries": entries,

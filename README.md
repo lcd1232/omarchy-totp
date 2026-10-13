@@ -17,6 +17,8 @@ Screenshots use demo mode (`demoMode true`), so the accounts are fake.
   opens; Enter copies the top match.
 - **Ente pins and recent first.** Accounts you pinned in Ente Auth come first,
   then the ones you used most recently in Ente Auth, then A–Z.
+- **Same icons as Ente Auth.** Brand icons in their colours, read from the
+  installed app; a letter when Ente has no icon for the account.
 - **Next code too.** Shift+Enter copies the code for the next period.
 - **Follows your theme.** Built from the stock Omarchy panel parts.
 - **Clipboard hygiene.** Codes are copied with `--sensitive` and cleared after

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs"
 // Model.js is a QML JS library (".pragma library"); load it as a plain script.
 const src = readFileSync(new URL("../Model.js", import.meta.url), "utf8").replace(/^\.pragma library\s*$/m, "")
 const names = ["parseList", "formatCode", "entryKey", "codeState", "refreshAt", "matchScore",
-  "rankEntries", "errorHint", "skippedHint", "statusHint", "installCommand", "canCopyCommand", "errorDetail"]
+  "rankEntries", "errorHint", "skippedHint", "statusHint", "installCommand", "canCopyCommand", "errorDetail", "iconTint", "isDarkColor", "avatarLetter"]
 const M = new Function(`${src}\nreturn { ${names.join(", ")} }`)()
 
 const e = (issuer, extra = {}) => ({ id: issuer.toLowerCase(), issuer, account: "", ...extra })
@@ -112,4 +112,28 @@ test("codeState and refreshAt are unchanged from the reference", () => {
   assert.equal(M.codeState(entry, 200).stale, true)
   assert.equal(M.refreshAt([entry]), 90)
   assert.equal(M.formatCode("123456"), "123 456")
+})
+
+test("icon tint follows Ente: brand colour, own colours, or theme colour for unreadable greys", () => {
+  assert.equal(M.iconTint("5865F2", true), "#5865F2")
+  assert.equal(M.iconTint("", true), "")           // multi-colour icon, keep its colours
+  assert.equal(M.iconTint("zz", true), "")
+  assert.equal(M.iconTint("181717", true), "foreground")   // near-black on dark theme
+  assert.equal(M.iconTint("242424", true), "foreground")
+  assert.equal(M.iconTint("181717", false), "#181717")     // fine on a light theme
+  assert.equal(M.iconTint("F5F5F5", false), "foreground")  // near-white on light theme
+  assert.equal(M.iconTint("F5F5F5", true), "#F5F5F5")
+  assert.equal(M.iconTint("1A1A40", true), "#1A1A40")      // dark but not grey: keep brand
+})
+
+test("dark theme detection", () => {
+  assert.equal(M.isDarkColor(22 / 255, 19 / 255, 15 / 255), true)
+  assert.equal(M.isDarkColor(0.95, 0.95, 0.93), false)
+})
+
+test("avatar letter", () => {
+  assert.equal(M.avatarLetter({ issuer: "aws", account: "root" }), "A")
+  assert.equal(M.avatarLetter({ issuer: "", account: "jane@example.com" }), "J")
+  assert.equal(M.avatarLetter({ issuer: "  ", account: "" }), "")
+  assert.equal(M.avatarLetter({ issuer: "Яндекс" }), "Я")
 })

@@ -29,6 +29,7 @@ class MainTest(unittest.TestCase):
         make_db(self.dir / ea.ONLINE_DB, [("a", *encrypt_row(otpauth()))])
         patches = [mock.patch.object(ea, "DATA_DIR", self.dir),
                    mock.patch.object(ea, "missing_packages", return_value=[]),
+                   mock.patch.object(ea, "ICON_ROOT", self.dir / "no-icons"),
                    mock.patch.object(ea, "read_keys", return_value={"auth_secret_key": KEY_B64})]
         for p in patches:
             p.start()
@@ -102,6 +103,7 @@ class DemoTest(unittest.TestCase):
         self.assertGreaterEqual(len(out["entries"]), 5)
         self.assertTrue(all(len(e["codes"]) == 2 for e in out["entries"]))
         self.assertTrue(any(e["pinned"] for e in out["entries"]))
+        self.assertTrue(all("icon" in e and "iconColor" in e for e in out["entries"]))
         # Some recently used, some never: shows the recent-first ordering.
         used = [e["lastUsedAt"] for e in out["entries"]]
         self.assertTrue(any(used) and not all(used))

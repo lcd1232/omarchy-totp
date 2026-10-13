@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
@@ -28,6 +29,7 @@ Panel {
   readonly property color dimForeground: Qt.darker(barForeground, 1.4)
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property bool healthy: svc.ok
+  readonly property bool darkTheme: Model.isDarkColor(Color.background.r, Color.background.g, Color.background.b)
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -348,9 +350,62 @@ Panel {
       anchors.rightMargin: Style.space(10)
       implicitHeight: Math.max(labels.implicitHeight, codeColumn.implicitHeight)
 
+      // Account icon from Ente Auth, coloured like in the app; a letter when
+      // Ente has none.
+      Item {
+        id: accountIcon
+        readonly property real size: Style.space(20)
+        readonly property string tint: Model.iconTint(row.entry.iconColor, root.darkTheme)
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        width: size
+        height: size
+
+        Image {
+          id: iconImage
+          anchors.fill: parent
+          visible: status === Image.Ready && accountIcon.tint === ""
+          source: row.entry.icon ? "file://" + row.entry.icon : ""
+          sourceSize: Qt.size(accountIcon.size * 3, accountIcon.size * 3)
+          fillMode: Image.PreserveAspectFit
+          smooth: true
+          asynchronous: true
+        }
+
+        // Single-colour icons: brighten to white, then colour.
+        MultiEffect {
+          anchors.fill: iconImage
+          source: iconImage
+          visible: iconImage.status === Image.Ready && accountIcon.tint !== ""
+          brightness: 1.0
+          colorization: 1.0
+          colorizationColor: accountIcon.tint === "foreground" ? root.barForeground : accountIcon.tint
+        }
+
+        Rectangle {
+          anchors.fill: parent
+          visible: iconImage.status !== Image.Ready
+          radius: width / 2
+          color: "transparent"
+          border.width: Math.max(1, Style.normalBorderWidth)
+          border.color: root.dimForeground
+
+          Text {
+            anchors.centerIn: parent
+            text: Model.avatarLetter(row.entry)
+            textFormat: Text.PlainText
+            color: root.barForeground
+            font.family: root.ff
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+        }
+      }
+
       Column {
         id: labels
-        anchors.left: parent.left
+        anchors.left: accountIcon.right
+        anchors.leftMargin: Style.space(10)
         anchors.right: codeColumn.left
         anchors.rightMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter

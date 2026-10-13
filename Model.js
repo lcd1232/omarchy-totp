@@ -164,3 +164,32 @@ function statusHint(s) {
   if (s.shown === 0) return "No codes — add them in Ente Auth"
   return ""
 }
+
+// Relative luminance (WCAG, as Flutter's computeLuminance) of 0..1 channels.
+function _luminance(r, g, b) {
+  function lin(c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) }
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+function isDarkColor(r, g, b) {
+  return _luminance(r, g, b) < 0.5
+}
+
+// How to colour an account icon, like Ente Auth: "#RRGGBB" for the brand
+// colour, "" to keep a multi-colour icon's own colours, or "foreground" when
+// the brand colour is a grey that would vanish on this theme.
+function iconTint(hex, darkTheme) {
+  var h = String(hex || "")
+  if (!/^[0-9A-Fa-f]{6}$/.test(h)) return ""
+  var r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16)
+  var grey = Math.abs(r - g) <= 3 && Math.abs(g - b) <= 3 && Math.abs(b - r) <= 3
+  var lum = _luminance(r / 255, g / 255, b / 255)
+  if (grey && (darkTheme ? lum < 0.05 : lum > 0.70)) return "foreground"
+  return "#" + h.toUpperCase()
+}
+
+// Letter shown in place of an icon when Ente Auth has none for the account.
+function avatarLetter(entry) {
+  var name = String((entry && entry.issuer) || "").trim() || String((entry && entry.account) || "").trim()
+  return name ? name.charAt(0).toUpperCase() : ""
+}
