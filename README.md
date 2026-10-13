@@ -9,8 +9,6 @@ window, no network.
   <img src="screenshots/search.png" alt="Searching accounts" width="360">
 </p>
 
-Screenshots use demo mode (`demoMode true`), so the accounts are fake.
-
 ## Features
 
 - **Launcher-style search.** The search field has focus as soon as the panel
