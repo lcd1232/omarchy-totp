@@ -27,14 +27,15 @@ window, no network.
 ## Requirements
 
 - [Omarchy](https://omarchy.org) with the Quickshell-based Omarchy shell
-- Ente Auth desktop (`ente-auth-bin` on the AUR), signed in (or in offline
-  mode) and opened at least once on this machine
-- `libsodium`, `libsecret`, `wl-clipboard`; `libnotify` (optional, for the "copied" notification)
+- Ente Auth desktop (`ente-auth-bin` on the AUR), opened at least once on this
+  machine and signed in (or set up with "Use without backups")
 
 ```sh
-omarchy pkg add libsodium libsecret wl-clipboard libnotify
 omarchy pkg aur add ente-auth-bin
 ```
+
+Everything else it uses (`libsodium`, `libsecret`, `wl-clipboard`, `libnotify`)
+comes with Omarchy.
 
 ## Install
 
