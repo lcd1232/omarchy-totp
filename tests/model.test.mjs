@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs"
 
 // Model.js is a QML JS library (".pragma library"); load it as a plain script.
 const src = readFileSync(new URL("../Model.js", import.meta.url), "utf8").replace(/^\.pragma library\s*$/m, "")
-const names = ["parseList", "formatCode", "entryKey", "codeState", "refreshAt", "matchScore",
+const names = ["parseList", "formatCode", "entryKey", "codeState", "timeLeft", "refreshAt", "matchScore",
   "rankEntries", "errorHint", "skippedHint", "statusHint", "installCommand", "canCopyCommand", "errorDetail", "iconTint", "isDarkColor", "avatarLetter", "fileUrl"]
 const M = new Function(`${src}\nreturn { ${names.join(", ")} }`)()
 
@@ -116,6 +116,13 @@ test("codeState and refreshAt are unchanged from the reference", () => {
   assert.equal(M.codeState(entry, 200).stale, true)
   assert.equal(M.refreshAt([entry]), 90)
   assert.equal(M.formatCode("123456"), "123 456")
+})
+
+test("timeLeft is a smooth fraction of the period", () => {
+  assert.equal(M.timeLeft(30, 60), 1)
+  assert.equal(M.timeLeft(30, 67.5), 0.75)
+  assert.ok(Math.abs(M.timeLeft(30, 89.97) - 0.001) < 1e-9)
+  assert.equal(M.timeLeft(0, 15), 0.5)
 })
 
 test("icon tint follows Ente: brand colour, own colours, or theme colour for unreadable greys", () => {

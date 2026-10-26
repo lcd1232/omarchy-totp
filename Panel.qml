@@ -38,6 +38,8 @@ Panel {
   property int selectedIndex: 0
   property string copiedKey: ""
   property real nowSec: Date.now() / 1000
+  // Per-frame clock for the countdown bars only; codes follow nowSec.
+  property real frameSec: nowSec
 
   // Text waiting to be written to wl-copy's stdin (see copyProcess).
   property string _pendingCopy: ""
@@ -182,6 +184,11 @@ Panel {
       root.nowSec = Date.now() / 1000
       svc.tick(root.nowSec)
     }
+  }
+
+  FrameAnimation {
+    running: root.opened
+    onTriggered: root.frameSec = Date.now() / 1000
   }
 
   Timer {
@@ -395,7 +402,7 @@ Panel {
             anchors.right: parent.right
             height: parent.height
             radius: height / 2
-            width: parent.width * Math.max(0, Math.min(1, row.st.remaining / row.st.period))
+            width: parent.width * Model.timeLeft(row.st.period, root.frameSec)
             color: row.ending ? root.urgent : Color.accent
             opacity: 0.85
           }
