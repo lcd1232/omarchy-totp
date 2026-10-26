@@ -42,6 +42,13 @@ function codeState(entry, nowSec) {
   }
 }
 
+// Share of the period still left at `nowSec`, as a fraction for the
+// countdown bar. Uses the fractional seconds so the bar moves smoothly.
+function timeLeft(period, nowSec) {
+  period = Number(period) || 30
+  return 1 - (nowSec % period) / period
+}
+
 // When to fetch a new window: once any entry is down to its last code.
 function refreshAt(entries) {
   var at = Infinity
